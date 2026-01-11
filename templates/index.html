@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Karate Task Tracker</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🥋 Karate Task Tracker</h1>
+            <p class="subtitle">Track your progress and earn your next belt!</p>
+        </div>
+
+        <div class="card">
+            <h2>Welcome! What's your name?</h2>
+            
+            {% if students %}
+            <div class="existing-students">
+                <p class="label">Click your name:</p>
+                <div class="student-buttons">
+                    {% for student in students %}
+                    <a href="/student/{{ student.id }}" class="btn btn-secondary">
+                        {{ student.name }}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <div class="divider">
+                <span>OR</span>
+            </div>
+            {% endif %}
+            
+            <form method="post" action="/student/create" class="name-form">
+                <input 
+                    type="text" 
+                    name="name" 
+                    placeholder="Enter your name" 
+                    required 
+                    class="name-input"
+                    autocomplete="off"
+                >
+                <button type="submit" class="btn btn-primary btn-large">
+                    Start Training! 🚀
+                </button>
+            </form>
+        </div>
+
+        <div class="footer">
+            <p>Build focus • Track progress • Achieve goals</p>
+        </div>
+    </div>
+</body>
+</html>

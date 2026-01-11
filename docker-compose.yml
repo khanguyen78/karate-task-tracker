@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  karate-tracker:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./karate_tracker.db:/app/karate_tracker.db
+      - ./static:/app/static
+      - ./templates:/app/templates
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped

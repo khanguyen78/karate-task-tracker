@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ student_name }}'s Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🥋 {{ student_name }}'s Tasks</h1>
+            {% if streak > 0 %}
+            <div class="streak-badge">🔥 {{ streak }} Day Streak!</div>
+            {% endif %}
+        </div>
+
+        <div class="nav-buttons">
+            <a href="/results/{{ student_id }}" class="btn btn-secondary">📊 View Results</a>
+            <a href="/" class="btn btn-secondary">🏠 Home</a>
+        </div>
+
+        {% if not tasks %}
+        <div class="card">
+            <h2>Upload Your Tasks</h2>
+            <p>Upload a CSV file with your karate tasks to get started!</p>
+            <p class="small-text">CSV format: task, description, estimated_time</p>
+            
+            <form id="uploadForm" class="upload-form">
+                <input type="file" id="fileInput" accept=".csv" required class="file-input">
+                <button type="submit" class="btn btn-primary">Upload Tasks 📤</button>
+            </form>
+        </div>
+        {% else %}
+        
+        {% if active_session %}
+        <div class="card active-task-card">
+            <h2>🎯 Active Task</h2>
+            <h3 class="task-title">{{ active_session.task_title }}</h3>
+            
+            <div class="timer" id="timer">00:00</div>
+            
+            <button 
+                class="btn btn-success btn-large" 
+                onclick="finishTask()"
+                id="finishBtn"
+            >
+                ✅ Finished!
+            </button>
+        </div>
+        {% endif %}
+
+        <div class="tasks-header">
+            <h2>Available Tasks</h2>
+            <button onclick="showUploadForm()" class="btn btn-secondary btn-small">
+                + Add More Tasks
+            </button>
+        </div>
+
+        <div id="uploadFormCard" class="card" style="display: none;">
+            <h3>Upload More Tasks</h3>
+            <form id="uploadFormExtra" class="upload-form">
+                <input type="file" id="fileInputExtra" accept=".csv" required class="file-input">
+                <button type="submit" class="btn btn-primary">Upload 📤</button>
+                <button type="button" onclick="hideUploadForm()" class="btn btn-secondary">Cancel</button>
+            </form>
+        </div>
+
+        <div class="tasks-grid">
+            {% for task in tasks %}
+            <div class="task-card {% if active_session and active_session.task_id == task.id %}task-active{% endif %}">
+                <h3>{{ task.title }}</h3>
+                {% if task.description %}
+                <p class="task-description">{{ task.description }}</p>
+                {% endif %}
+                <div class="task-meta">
+                    <span class="time-badge">⏱️ ~{{ task.estimated_time }} min</span>
+                    <span class="difficulty-badge">
+                        {% if task.difficulty_weight <= 0.5 %}🟢 Easy
+                        {% elif task.difficulty_weight <= 1.0 %}🟡 Medium
+                        {% elif task.difficulty_weight <= 1.5 %}🟠 Hard
+                        {% else %}🔴 Expert{% endif %}
+                    </span>
+                </div>
+                
+                {% if not active_session %}
+                <button 
+                    class="btn btn-primary btn-large"
+                    onclick="startTask({{ task.id }})"
+                >
+                    🚀 Start
+                </button>
+                {% elif active_session.task_id != task.id %}
+                <button class="btn btn-disabled" disabled>
+                    Finish current task first
+                </button>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        const studentId = {{ student_id }};
+        let timerInterval;
+        
+        {% if active_session %}
+        let elapsedSeconds = {{ active_session.elapsed }};
+        
+        function updateTimer() {
+            elapsedSeconds++;
+            const minutes = Math.floor(elapsedSeconds / 60);
+            const seconds = elapsedSeconds % 60;
+            document.getElementById('timer').textContent = 
+                `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+        
+        timerInterval = setInterval(updateTimer, 1000);
+        updateTimer();
+        {% endif %}
+
+        async function startTask(taskId) {
+            try {
+                const response = await fetch(`/task/start/${studentId}/${taskId}`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Error starting task');
+                }
+            } catch (error) {
+                alert('Error starting task: ' + error.message);
+            }
+        }
+
+        async function finishTask() {
+            const btn = document.getElementById('finishBtn');
+            btn.disabled = true;
+            btn.textContent = 'Saving...';
+            
+            try {
+                const response = await fetch(`/task/finish/${studentId}`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    clearInterval(timerInterval);
+                    
+                    // Show confetti
+                    confetti({
+                        particleCount: 100,
+                        spread: 70,
+                        origin: { y: 0.6 }
+                    });
+                    
+                    setTimeout(() => {
+                        confetti({
+                            particleCount: 50,
+                            angle: 60,
+                            spread: 55,
+                            origin: { x: 0 }
+                        });
+                    }, 200);
+                    
+                    setTimeout(() => {
+                        confetti({
+                            particleCount: 50,
+                            angle: 120,
+                            spread: 55,
+                            origin: { x: 1 }
+                        });
+                    }, 400);
+                    
+                    // Show completion message
+                    alert(`🎉 Great job!\n\nTime: ${data.time_display}\nFocus Score: ${data.focus_score}/1.0\nImpact Score: ${data.impact_score}/10.0`);
+                    
+                    window.location.reload();
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Error finishing task');
+                    btn.disabled = false;
+                    btn.textContent = '✅ Finished!';
+                }
+            } catch (error) {
+                alert('Error finishing task: ' + error.message);
+                btn.disabled = false;
+                btn.textContent = '✅ Finished!';
+            }
+        }
+
+        async function handleUpload(event, formId, inputId) {
+            event.preventDefault();
+            
+            const fileInput = document.getElementById(inputId);
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Please select a file');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                const response = await fetch(`/upload-tasks/${studentId}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    alert(`✅ Successfully added ${data.tasks_added} tasks!`);
+                    window.location.reload();
+                } else {
+                    alert('Error uploading file');
+                }
+            } catch (error) {
+                alert('Error uploading file: ' + error.message);
+            }
+        }
+
+        function showUploadForm() {
+            document.getElementById('uploadFormCard').style.display = 'block';
+        }
+
+        function hideUploadForm() {
+            document.getElementById('uploadFormCard').style.display = 'none';
+        }
+
+        {% if not active_session %}
+        document.getElementById('uploadForm')?.addEventListener('submit', (e) => handleUpload(e, 'uploadForm', 'fileInput'));
+        {% endif %}
+        
+        document.getElementById('uploadFormExtra')?.addEventListener('submit', (e) => handleUpload(e, 'uploadFormExtra', 'fileInputExtra'));
+    </script>
+</body>
+</html>

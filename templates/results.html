@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ student_name }}'s Results</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 {{ student_name }}'s Results</h1>
+            {% if streak > 0 %}
+            <div class="streak-badge">🔥 {{ streak }} Day Streak!</div>
+            {% endif %}
+        </div>
+
+        <div class="nav-buttons">
+            <a href="/student/{{ student_id }}" class="btn btn-primary">← Back to Tasks</a>
+            <a href="/" class="btn btn-secondary">🏠 Home</a>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number">{{ total_tasks }}</div>
+                <div class="stat-label">Tasks Completed</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-number">{{ total_time_display }}</div>
+                <div class="stat-label">Total Time</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-number">{{ avg_focus_score }}</div>
+                <div class="stat-label">Avg Focus Score</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-number">{{ streak }}</div>
+                <div class="stat-label">Day Streak</div>
+            </div>
+        </div>
+
+        {% if completions %}
+        <div class="card">
+            <h2>Completed Tasks History</h2>
+            
+            <div class="completions-list">
+                {% for completion in completions %}
+                <div class="completion-item">
+                    <div class="completion-header">
+                        <h3>{{ completion.title }}</h3>
+                        <span class="completion-date">
+                            {{ completion.completed_at.split('.')[0].replace('T', ' ') }}
+                        </span>
+                    </div>
+                    
+                    <div class="completion-stats">
+                        <div class="completion-stat">
+                            <span class="label">Time:</span>
+                            <span class="value">{{ completion.actual_time_display }}</span>
+                        </div>
+                        
+                        <div class="completion-stat">
+                            <span class="label">Expected:</span>
+                            <span class="value">~{{ completion.estimated_time }} min</span>
+                        </div>
+                        
+                        <div class="completion-stat">
+                            <span class="label">Focus:</span>
+                            <span class="value score-value 
+                                {% if completion.focus_score >= 0.8 %}score-high
+                                {% elif completion.focus_score >= 0.5 %}score-medium
+                                {% else %}score-low{% endif %}">
+                                {{ completion.focus_score }}
+                            </span>
+                        </div>
+                        
+                        <div class="completion-stat">
+                            <span class="label">Impact:</span>
+                            <span class="value score-value
+                                {% if completion.impact_score >= 7 %}score-high
+                                {% elif completion.impact_score >= 4 %}score-medium
+                                {% else %}score-low{% endif %}">
+                                {{ completion.impact_score }}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    {% if completion.actual_time <= completion.estimated_time * 60 %}
+                    <div class="achievement-badge">🌟 Finished Early!</div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% else %}
+        <div class="card empty-state">
+            <h2>No completed tasks yet</h2>
+            <p>Start completing tasks to see your progress here!</p>
+            <a href="/student/{{ student_id }}" class="btn btn-primary btn-large">
+                Go to Tasks
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>
