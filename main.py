@@ -191,20 +191,22 @@ async def student_dashboard(request: Request, student_id: int):
               "estimated_time": row[3], "difficulty_weight": row[4]} for row in c.fetchall()]
     
     # Check for active session
-    c.execute('''SELECT a.id, a.task_id, t.title, a.start_time
+    c.execute('''SELECT a.id, a.task_id, t.title, t.description, t.estimated_time, a.start_time
                  FROM active_sessions a
                  JOIN tasks t ON a.task_id = t.id
                  WHERE a.student_id = ?''', (student_id,))
     active = c.fetchone()
     active_session = None
     if active:
-        start_time = datetime.fromisoformat(active[3])
+        start_time = datetime.fromisoformat(active[5])
         elapsed = int((datetime.now() - start_time).total_seconds())
         active_session = {
             "id": active[0],
             "task_id": active[1],
             "task_title": active[2],
-            "start_time": active[3],
+            "task_description": active[3],
+            "estimated_time": active[4],
+            "start_time": active[5],
             "elapsed": elapsed
         }
     
@@ -355,6 +357,24 @@ async def session_status(student_id: int):
     
     return {"active": False}
 
+@app.post("/task/cancel/{student_id}")
+async def cancel_task(student_id: int):
+    """Cancel the current active task without saving"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    
+    # Delete active session
+    c.execute("DELETE FROM active_sessions WHERE student_id = ?", (student_id,))
+    deleted = c.rowcount
+    
+    conn.commit()
+    conn.close()
+    
+    if deleted > 0:
+        return {"success": True, "message": "Task cancelled"}
+    else:
+        raise HTTPException(400, "No active task to cancel")
+
 @app.get("/results/{student_id}", response_class=HTMLResponse)
 async def results(request: Request, student_id: int):
     conn = sqlite3.connect(DB_PATH)
@@ -420,6 +440,61 @@ async def results(request: Request, student_id: int):
         "avg_focus_score": avg_focus,
         "streak": streak
     })
+
+@app.post("/student/{student_id}/reset")
+async def reset_student_data(student_id: int):
+    """Reset all data for a student including tasks and completions"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    
+    # Verify student exists
+    c.execute("SELECT id FROM students WHERE id = ?", (student_id,))
+    if not c.fetchone():
+        conn.close()
+        raise HTTPException(404, "Student not found")
+    
+    # Delete all task completions for this student
+    c.execute("DELETE FROM task_completions WHERE student_id = ?", (student_id,))
+    completions_deleted = c.rowcount
+    
+    # Delete any active sessions
+    c.execute("DELETE FROM active_sessions WHERE student_id = ?", (student_id,))
+    
+    conn.commit()
+    conn.close()
+    
+    return {
+        "success": True,
+        "completions_deleted": completions_deleted,
+        "message": "All session data has been reset"
+    }
+
+@app.post("/tasks/clear")
+async def clear_all_tasks():
+    """Delete all tasks from the database"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    
+    # Delete all task completions first (foreign key constraint)
+    c.execute("DELETE FROM task_completions")
+    completions_deleted = c.rowcount
+    
+    # Delete all active sessions
+    c.execute("DELETE FROM active_sessions")
+    
+    # Delete all tasks
+    c.execute("DELETE FROM tasks")
+    tasks_deleted = c.rowcount
+    
+    conn.commit()
+    conn.close()
+    
+    return {
+        "success": True,
+        "tasks_deleted": tasks_deleted,
+        "completions_deleted": completions_deleted,
+        "message": "All tasks and related data have been cleared"
+    }
 
 if __name__ == "__main__":
     import uvicorn

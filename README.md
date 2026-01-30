@@ -47,6 +47,8 @@ docker-compose up --build
 2. **Access the application:**
 Open your browser to `http://localhost:8000`
 
+**Your data persists automatically!** The database is stored in `./data/karate_tracker.db` on your computer, not inside the Docker container. This means your data survives container restarts, rebuilds, and updates.
+
 ### Manual Installation
 
 1. **Install dependencies:**
@@ -131,14 +133,39 @@ karate-tracker/
 ├── Dockerfile             # Docker configuration
 ├── docker-compose.yml     # Docker Compose setup
 ├── README.md              # This file
+├── DATA_PERSISTENCE.md    # Data backup and persistence guide
 ├── static/
 │   └── style.css          # Stylesheet
 ├── templates/
 │   ├── index.html         # Home page
 │   ├── dashboard.html     # Task dashboard
 │   └── results.html       # Results page
-└── karate_tracker.db      # SQLite database (created on first run)
+└── data/                  # Database storage (persists outside container)
+    └── karate_tracker.db  # SQLite database (created on first run)
 ```
+
+## Data Persistence
+
+**Your data is automatically saved!** 
+
+- Database location: `./data/karate_tracker.db`
+- Survives container restarts: ✅
+- Survives container rebuilds: ✅
+- Survives code updates: ✅
+
+**Backup your data:**
+```bash
+cp -r data data_backup_$(date +%Y%m%d)
+```
+
+**Restore from backup:**
+```bash
+docker-compose down
+cp -r data_backup_20240130 data
+docker-compose up -d
+```
+
+See [DATA_PERSISTENCE.md](DATA_PERSISTENCE.md) for complete backup and restore guide.
 
 ## Database Schema
 
@@ -262,28 +289,3 @@ Designed for accessibility and ease of use for neurodivergent learners.
 ---
 
 Made with ❤️ for karate students everywhere! 🥋
-
-
-
-chmod +x setup.sh
-./setup.sh
-```
-
-## 📁 New File Structure:
-```
-karate-tracker/
-├── data/                    ← Database stored here
-│   └── karate_tracker.db   ← Auto-created
-├── static/
-│   └── style.css
-├── templates/
-│   ├── index.html
-│   ├── dashboard.html
-│   └── results.html
-├── main.py                  ← Updated
-├── Dockerfile               ← Updated
-├── docker-compose.yml       ← Updated
-├── setup.sh                 ← Updated
-├── .dockerignore            ← New
-├── QUICKSTART.md            ← New
-└── ...
