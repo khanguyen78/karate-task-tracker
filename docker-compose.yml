@@ -6,9 +6,23 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./karate_tracker.db:/app/karate_tracker.db
+      # Map local data directory to container - this persists your database
+      - ./data:/app/data
+      # Optional: map static and templates for easy updates without rebuild
       - ./static:/app/static
       - ./templates:/app/templates
     environment:
       - PYTHONUNBUFFERED=1
+      - DATABASE_PATH=/app/data/karate_tracker.db
     restart: unless-stopped
+
+# Optional: Use a named volume instead of bind mount for better portability
+# Uncomment this section and comment out the volumes above to use named volumes
+#
+# volumes:
+#   karate-data:
+#
+# services:
+#   karate-tracker:
+#     volumes:
+#       - karate-data:/app/data

@@ -18,6 +18,12 @@
 
         <div class="nav-buttons">
             <a href="/results/{{ student_id }}" class="btn btn-secondary">📊 View Results</a>
+            <button onclick="resetSession()" class="btn btn-warning">🔄 Reset Session</button>
+            {% if tasks and not active_session %}
+            <button onclick="startAutoMode()" class="btn btn-primary btn-large" id="autoModeBtn">
+                ▶️ Begin All Tasks
+            </button>
+            {% endif %}
             <a href="/" class="btn btn-secondary">🏠 Home</a>
         </div>
 
@@ -35,11 +41,15 @@
         {% else %}
         
         {% if active_session %}
-        <div class="card active-task-card">
+        <div class="card active-task-card" id="activeTaskCard">
             <h2>🎯 Active Task</h2>
             <h3 class="task-title">{{ active_session.task_title }}</h3>
+            {% if active_session.task_description %}
+            <p class="task-description-active">{{ active_session.task_description }}</p>
+            {% endif %}
             
             <div class="timer" id="timer">00:00</div>
+            <div class="timer-progress" id="timerProgress"></div>
             
             <button 
                 class="btn btn-success btn-large" 
@@ -48,18 +58,42 @@
             >
                 ✅ Finished!
             </button>
+            
+            <button 
+                class="btn btn-secondary" 
+                onclick="togglePause()"
+                id="pauseBtn"
+                style="margin-top: 15px;"
+            >
+                ⏸️ Pause
+            </button>
+            
+            <button 
+                class="btn btn-warning" 
+                onclick="cancelTask()"
+                id="cancelBtn"
+                style="margin-top: 15px;"
+            >
+                ❌ Cancel Task
+            </button>
         </div>
         {% endif %}
 
         <div class="tasks-header">
             <h2>Available Tasks</h2>
-            <button onclick="showUploadForm()" class="btn btn-secondary btn-small">
-                + Add More Tasks
-            </button>
+            <div class="task-header-buttons">
+                <button onclick="showUploadForm()" class="btn btn-secondary btn-small">
+                    + Add More Tasks
+                </button>
+                <button onclick="clearAllTasks()" class="btn btn-warning btn-small">
+                    🗑️ Clear All Tasks
+                </button>
+            </div>
         </div>
 
         <div id="uploadFormCard" class="card" style="display: none;">
             <h3>Upload More Tasks</h3>
+            <p class="small-text">CSV format: task, description, estimated_time</p>
             <form id="uploadFormExtra" class="upload-form">
                 <input type="file" id="fileInputExtra" accept=".csv" required class="file-input">
                 <button type="submit" class="btn btn-primary">Upload 📤</button>
@@ -87,7 +121,7 @@
                 {% if not active_session %}
                 <button 
                     class="btn btn-primary btn-large"
-                    onclick="startTask({{ task.id }})"
+                    onclick="startTask({{ task.id }}, '{{ task.title|replace("'", "\\'") }}', '{{ task.description|replace("'", "\\'")|default('', true) }}')"
                 >
                     🚀 Start
                 </button>
@@ -105,30 +139,114 @@
     <script>
         const studentId = {{ student_id }};
         let timerInterval;
+        let isPaused = false;
+        let autoMode = false;
+        let autoModeTaskQueue = [];
+        let currentTaskEstimatedTime = 0;
+        let elapsedSeconds = 0;
         
         {% if active_session %}
-        let elapsedSeconds = {{ active_session.elapsed }};
+        elapsedSeconds = {{ active_session.elapsed }};
+        currentTaskEstimatedTime = {{ active_session.estimated_time }} * 60;
         
         function updateTimer() {
-            elapsedSeconds++;
+            if (!isPaused) {
+                elapsedSeconds++;
+            }
             const minutes = Math.floor(elapsedSeconds / 60);
             const seconds = elapsedSeconds % 60;
             document.getElementById('timer').textContent = 
                 `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            
+            // Update progress bar if in auto mode
+            if (autoMode && currentTaskEstimatedTime > 0) {
+                updateProgressBar();
+                
+                // Auto-advance when time is up
+                if (elapsedSeconds >= currentTaskEstimatedTime) {
+                    autoFinishTask();
+                }
+            }
+        }
+        
+        function updateProgressBar() {
+            const progressEl = document.getElementById('timerProgress');
+            if (progressEl && currentTaskEstimatedTime > 0) {
+                const percentage = Math.min((elapsedSeconds / currentTaskEstimatedTime) * 100, 100);
+                progressEl.textContent = `${Math.round(percentage)}% complete (${Math.max(0, Math.ceil((currentTaskEstimatedTime - elapsedSeconds) / 60))} min remaining)`;
+                
+                if (percentage >= 100) {
+                    progressEl.style.color = '#4caf50';
+                    progressEl.style.fontWeight = 'bold';
+                }
+            }
         }
         
         timerInterval = setInterval(updateTimer, 1000);
         updateTimer();
         {% endif %}
 
-        async function startTask(taskId) {
+        async function startTask(taskId, taskTitle, taskDescription) {
             try {
                 const response = await fetch(`/task/start/${studentId}/${taskId}`, {
                     method: 'POST'
                 });
                 
                 if (response.ok) {
-                    window.location.reload();
+                    // Create active task card immediately for smooth UX
+                    const tasksSection = document.querySelector('.tasks-grid');
+                    if (tasksSection) {
+                        const activeCard = document.createElement('div');
+                        activeCard.className = 'card active-task-card';
+                        activeCard.id = 'activeTaskCard';
+                        activeCard.innerHTML = `
+                            <h2>🎯 Active Task</h2>
+                            <h3 class="task-title">${taskTitle}</h3>
+                            ${taskDescription ? `<p class="task-description-active">${taskDescription}</p>` : ''}
+                            <div class="timer" id="timer">00:00</div>
+                            <div class="timer-progress" id="timerProgress"></div>
+                            <button class="btn btn-success btn-large" onclick="finishTask()" id="finishBtn">
+                                ✅ Finished!
+                            </button>
+                            <button class="btn btn-secondary" onclick="togglePause()" id="pauseBtn" style="margin-top: 15px;">
+                                ⏸️ Pause
+                            </button>
+                            <button class="btn btn-warning" onclick="cancelTask()" id="cancelBtn" style="margin-top: 15px;">
+                                ❌ Cancel Task
+                            </button>
+                        `;
+                        
+                        // Insert before tasks section
+                        tasksSection.parentNode.insertBefore(activeCard, tasksSection);
+                        
+                        // Scroll to active task
+                        setTimeout(() => {
+                            activeCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }, 100);
+                        
+                        // Start timer
+                        let seconds = 0;
+                        const timerInterval = setInterval(() => {
+                            seconds++;
+                            const minutes = Math.floor(seconds / 60);
+                            const secs = seconds % 60;
+                            const timerEl = document.getElementById('timer');
+                            if (timerEl) {
+                                timerEl.textContent = `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+                            } else {
+                                clearInterval(timerInterval);
+                            }
+                        }, 1000);
+                        
+                        // Disable all start buttons
+                        document.querySelectorAll('.task-card button').forEach(btn => {
+                            btn.disabled = true;
+                            btn.textContent = 'Finish current task first';
+                            btn.className = 'btn btn-disabled';
+                        });
+                    } else {
+                        window.location.reload();
+                    }
                 } else {
                     const error = await response.json();
                     alert(error.detail || 'Error starting task');
@@ -138,7 +256,64 @@
             }
         }
 
-        async function finishTask() {
+        function togglePause() {
+            isPaused = !isPaused;
+            const pauseBtn = document.getElementById('pauseBtn');
+            if (isPaused) {
+                pauseBtn.textContent = '▶️ Resume';
+                pauseBtn.className = 'btn btn-primary';
+            } else {
+                pauseBtn.textContent = '⏸️ Pause';
+                pauseBtn.className = 'btn btn-secondary';
+            }
+        }
+
+        async function startAutoMode() {
+            if (!confirm('Start all tasks in sequence? Each task will run for its estimated time and automatically advance to the next.')) {
+                return;
+            }
+            
+            autoMode = true;
+            autoModeTaskQueue = {{ tasks | tojson }};
+            
+            if (autoModeTaskQueue.length === 0) {
+                alert('No tasks available');
+                return;
+            }
+            
+            // Hide the begin button
+            const autoBtn = document.getElementById('autoModeBtn');
+            if (autoBtn) autoBtn.style.display = 'none';
+            
+            // Start first task
+            await startNextAutoTask();
+        }
+
+        async function startNextAutoTask() {
+            if (autoModeTaskQueue.length === 0) {
+                autoMode = false;
+                alert('🎉 All tasks completed! Great job!');
+                confetti({
+                    particleCount: 200,
+                    spread: 100,
+                    origin: { y: 0.6 }
+                });
+                setTimeout(() => window.location.reload(), 2000);
+                return;
+            }
+            
+            const task = autoModeTaskQueue.shift();
+            currentTaskEstimatedTime = task.estimated_time * 60;
+            
+            await startTask(task.id, task.title, task.description || '');
+        }
+
+        async function autoFinishTask() {
+            // Automatically finish the task
+            await finishTask(true);
+        }
+
+        async function finishTask(autoAdvance = false) {
             const btn = document.getElementById('finishBtn');
             btn.disabled = true;
             btn.textContent = 'Saving...';
@@ -152,35 +327,57 @@
                     const data = await response.json();
                     clearInterval(timerInterval);
                     
-                    // Show confetti
-                    confetti({
-                        particleCount: 100,
-                        spread: 70,
-                        origin: { y: 0.6 }
-                    });
-                    
-                    setTimeout(() => {
+                    if (!autoAdvance) {
+                        // Show confetti
                         confetti({
-                            particleCount: 50,
-                            angle: 60,
-                            spread: 55,
-                            origin: { x: 0 }
+                            particleCount: 100,
+                            spread: 70,
+                            origin: { y: 0.6 }
                         });
-                    }, 200);
+                        
+                        setTimeout(() => {
+                            confetti({
+                                particleCount: 50,
+                                angle: 60,
+                                spread: 55,
+                                origin: { x: 0 }
+                            });
+                        }, 200);
+                        
+                        setTimeout(() => {
+                            confetti({
+                                particleCount: 50,
+                                angle: 120,
+                                spread: 55,
+                                origin: { x: 1 }
+                            });
+                        }, 400);
+                        
+                        // Show completion message
+                        alert(`🎉 Great job!\n\nTime: ${data.time_display}\nFocus Score: ${data.focus_score}/1.0\nImpact Score: ${data.impact_score}/10.0`);
+                    }
                     
-                    setTimeout(() => {
+                    // Remove active card
+                    const activeCard = document.getElementById('activeTaskCard');
+                    if (activeCard) {
+                        activeCard.remove();
+                    }
+                    
+                    if (autoMode) {
+                        // Small celebration
                         confetti({
-                            particleCount: 50,
-                            angle: 120,
-                            spread: 55,
-                            origin: { x: 1 }
+                            particleCount: 30,
+                            spread: 50,
+                            origin: { y: 0.7 }
                         });
-                    }, 400);
-                    
-                    // Show completion message
-                    alert(`🎉 Great job!\n\nTime: ${data.time_display}\nFocus Score: ${data.focus_score}/1.0\nImpact Score: ${data.impact_score}/10.0`);
-                    
-                    window.location.reload();
+                        
+                        // Continue to next task
+                        setTimeout(() => {
+                            startNextAutoTask();
+                        }, 1000);
+                    } else {
+                        setTimeout(() => window.location.reload(), 2000);
+                    }
                 } else {
                     const error = await response.json();
                     alert(error.detail || 'Error finishing task');
@@ -239,6 +436,82 @@
         {% endif %}
         
         document.getElementById('uploadFormExtra')?.addEventListener('submit', (e) => handleUpload(e, 'uploadFormExtra', 'fileInputExtra'));
+
+        async function cancelTask() {
+            if (!confirm('Cancel this task? Your progress will not be saved.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/task/cancel/${studentId}`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    alert('Task cancelled');
+                    window.location.reload();
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Error cancelling task');
+                }
+            } catch (error) {
+                alert('Error cancelling task: ' + error.message);
+            }
+        }
+
+        async function resetSession() {
+            if (!confirm('⚠️ WARNING: This will delete ALL your completed tasks and reset your progress!\n\nAre you absolutely sure?')) {
+                return;
+            }
+            
+            if (!confirm('This cannot be undone. Delete everything?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/student/${studentId}/reset`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    alert(`✅ Session reset!\n${data.completions_deleted} completed tasks deleted.`);
+                    window.location.reload();
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Error resetting session');
+                }
+            } catch (error) {
+                alert('Error resetting session: ' + error.message);
+            }
+        }
+
+        async function clearAllTasks() {
+            if (!confirm('⚠️ WARNING: This will delete ALL tasks and ALL completion history for ALL students!\n\nThis cannot be undone. Are you absolutely sure?')) {
+                return;
+            }
+            
+            if (!confirm('This will clear everything. You will need to upload a new CSV. Continue?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/tasks/clear', {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    alert(`✅ All tasks cleared!\n\n${data.tasks_deleted} tasks deleted\n${data.completions_deleted} completions deleted\n\nYou can now upload a new CSV file.`);
+                    window.location.reload();
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Error clearing tasks');
+                }
+            } catch (error) {
+                alert('Error clearing tasks: ' + error.message);
+            }
+        }
     </script>
 </body>
 </html>
