@@ -1,20 +1,15 @@
 #!/bin/bash
 
-# Karate Task Tracker Setup Script
-
 echo "🥋 Karate Task Tracker Setup"
 echo "=============================="
 echo ""
 
-# Create data directory
 mkdir -p data
 echo "✅ Created data directory"
 
-# Check if Docker is installed
 if command -v docker &> /dev/null; then
     echo "✅ Docker is installed"
     
-    # Check if Docker Compose is installed
     if command -v docker-compose &> /dev/null; then
         echo "✅ Docker Compose is installed"
         echo ""
@@ -38,7 +33,6 @@ else
     echo "Installing manually..."
     echo ""
     
-    # Check if Python is installed
     if command -v python3 &> /dev/null; then
         echo "✅ Python is installed"
         echo ""

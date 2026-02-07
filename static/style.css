@@ -318,6 +318,17 @@ body {
     font-weight: bold;
     margin: 30px 0 10px 0;
     font-family: 'Courier New', monospace;
+    transition: color 0.3s ease;
+}
+
+.timer.overtime {
+    color: #ff6b6b;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
 }
 
 .timer-progress {

@@ -153,10 +153,27 @@
             if (!isPaused) {
                 elapsedSeconds++;
             }
-            const minutes = Math.floor(elapsedSeconds / 60);
-            const seconds = elapsedSeconds % 60;
-            document.getElementById('timer').textContent = 
-                `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            
+            // Calculate remaining time
+            const remainingSeconds = Math.max(0, currentTaskEstimatedTime - elapsedSeconds);
+            const minutes = Math.floor(remainingSeconds / 60);
+            const seconds = remainingSeconds % 60;
+            
+            // Display countdown timer
+            const timerEl = document.getElementById('timer');
+            if (timerEl) {
+                if (remainingSeconds > 0) {
+                    timerEl.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                    timerEl.style.color = '';
+                } else {
+                    // Timer finished - show overtime
+                    const overtimeSeconds = elapsedSeconds - currentTaskEstimatedTime;
+                    const overtimeMinutes = Math.floor(overtimeSeconds / 60);
+                    const overtimeSecs = overtimeSeconds % 60;
+                    timerEl.textContent = `+${String(overtimeMinutes).padStart(2, '0')}:${String(overtimeSecs).padStart(2, '0')}`;
+                    timerEl.style.color = '#ff6b6b';
+                }
+            }
             
             // Update progress bar if in auto mode
             if (autoMode && currentTaskEstimatedTime > 0) {
@@ -165,19 +182,6 @@
                 // Auto-advance when time is up
                 if (elapsedSeconds >= currentTaskEstimatedTime) {
                     autoFinishTask();
-                }
-            }
-        }
-        
-        function updateProgressBar() {
-            const progressEl = document.getElementById('timerProgress');
-            if (progressEl && currentTaskEstimatedTime > 0) {
-                const percentage = Math.min((elapsedSeconds / currentTaskEstimatedTime) * 100, 100);
-                progressEl.textContent = `${Math.round(percentage)}% complete (${Math.max(0, Math.ceil((currentTaskEstimatedTime - elapsedSeconds) / 60))} min remaining)`;
-                
-                if (percentage >= 100) {
-                    progressEl.style.color = '#4caf50';
-                    progressEl.style.fontWeight = 'bold';
                 }
             }
         }
@@ -193,6 +197,15 @@
                 });
                 
                 if (response.ok) {
+                    const data = await response.json();
+                    
+                    // Get task estimated time from the tasks array
+                    const allTasks = {{ tasks | tojson }};
+                    const task = allTasks.find(t => t.id === taskId);
+                    if (task) {
+                        currentTaskEstimatedTime = task.estimated_time * 60;
+                    }
+                    
                     // Create active task card immediately for smooth UX
                     const tasksSection = document.querySelector('.tasks-grid');
                     if (tasksSection) {
@@ -224,17 +237,50 @@
                             activeCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
                         }, 100);
                         
+                        // Reset timer variables
+                        elapsedSeconds = 0;
+                        isPaused = false;
+                        
+                        // Clear any existing timer
+                        if (timerInterval) {
+                            clearInterval(timerInterval);
+                        }
+                        
                         // Start timer
-                        let seconds = 0;
-                        const timerInterval = setInterval(() => {
-                            seconds++;
-                            const minutes = Math.floor(seconds / 60);
-                            const secs = seconds % 60;
+                        timerInterval = setInterval(() => {
+                            if (!isPaused) {
+                                elapsedSeconds++;
+                            }
+                            
+                            // Calculate remaining time
+                            const remainingSeconds = Math.max(0, currentTaskEstimatedTime - elapsedSeconds);
+                            const minutes = Math.floor(remainingSeconds / 60);
+                            const secs = remainingSeconds % 60;
+                            
                             const timerEl = document.getElementById('timer');
                             if (timerEl) {
-                                timerEl.textContent = `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-                            } else {
-                                clearInterval(timerInterval);
+                                if (remainingSeconds > 0) {
+                                    timerEl.textContent = `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+                                    timerEl.style.color = '';
+                                } else {
+                                    // Timer finished - show overtime
+                                    const overtimeSeconds = elapsedSeconds - currentTaskEstimatedTime;
+                                    const overtimeMinutes = Math.floor(overtimeSeconds / 60);
+                                    const overtimeSecs = overtimeSeconds % 60;
+                                    timerEl.textContent = `+${String(overtimeMinutes).padStart(2, '0')}:${String(overtimeSecs).padStart(2, '0')}`;
+                                    timerEl.style.color = '#ff6b6b';
+                                }
+                            }
+                            
+                            // Update progress bar if in auto mode
+                            if (autoMode && currentTaskEstimatedTime > 0) {
+                                updateProgressBar();
+                                
+                                // Auto-advance when time is up
+                                if (elapsedSeconds >= currentTaskEstimatedTime) {
+                                    clearInterval(timerInterval);
+                                    autoFinishTask();
+                                }
                             }
                         }, 1000);
                         
@@ -429,6 +475,26 @@
 
         function hideUploadForm() {
             document.getElementById('uploadFormCard').style.display = 'none';
+        }
+
+        function updateProgressBar() {
+            const progressEl = document.getElementById('timerProgress');
+            if (progressEl && currentTaskEstimatedTime > 0) {
+                const percentage = Math.min((elapsedSeconds / currentTaskEstimatedTime) * 100, 100);
+                const remainingSeconds = Math.max(0, currentTaskEstimatedTime - elapsedSeconds);
+                const remainingMinutes = Math.ceil(remainingSeconds / 60);
+                
+                if (remainingSeconds > 0) {
+                    progressEl.textContent = `${Math.round(percentage)}% complete (${remainingMinutes} min remaining)`;
+                    progressEl.style.color = '';
+                } else {
+                    const overtimeSeconds = elapsedSeconds - currentTaskEstimatedTime;
+                    const overtimeMinutes = Math.floor(overtimeSeconds / 60);
+                    progressEl.textContent = `Time's up! (+${overtimeMinutes} min overtime)`;
+                    progressEl.style.color = '#ff6b6b';
+                    progressEl.style.fontWeight = 'bold';
+                }
+            }
         }
 
         {% if not active_session %}

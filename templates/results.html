@@ -17,6 +17,7 @@
 
         <div class="nav-buttons">
             <a href="/student/{{ student_id }}" class="btn btn-primary">← Back to Tasks</a>
+            <button onclick="resetSession()" class="btn btn-warning">🔄 Reset All Data</button>
             <a href="/" class="btn btn-secondary">🏠 Home</a>
         </div>
 
@@ -55,6 +56,10 @@
                             {{ completion.completed_at.split('.')[0].replace('T', ' ') }}
                         </span>
                     </div>
+                    
+                    {% if completion.description %}
+                    <p class="completion-description">{{ completion.description }}</p>
+                    {% endif %}
                     
                     <div class="completion-stats">
                         <div class="completion-stat">
@@ -105,5 +110,36 @@
         </div>
         {% endif %}
     </div>
+    
+    <script>
+        const studentId = {{ student_id }};
+        
+        async function resetSession() {
+            if (!confirm('⚠️ WARNING: This will delete ALL your completed tasks and reset your entire progress!\n\nAre you absolutely sure?')) {
+                return;
+            }
+            
+            if (!confirm('This action cannot be undone. Really delete everything?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/student/${studentId}/reset`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    alert(`✅ All data reset!\n${data.completions_deleted} completed tasks deleted.`);
+                    window.location.href = `/student/${studentId}`;
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Error resetting data');
+                }
+            } catch (error) {
+                alert('Error resetting data: ' + error.message);
+            }
+        }
+    </script>
 </body>
 </html>
