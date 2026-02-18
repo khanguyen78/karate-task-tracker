@@ -11,6 +11,5 @@ env/
 .git
 .gitignore
 README.md
-INSTALLATION.md
 .DS_Store
 *.log

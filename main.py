@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request, Form, UploadFile, File, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from datetime import datetime, timedelta
@@ -7,13 +7,10 @@ import sqlite3
 import csv
 import io
 import os
-from typing import Optional, List, Dict
-import json
 from pathlib import Path
 
 app = FastAPI()
 
-# Create necessary directories
 Path("static").mkdir(exist_ok=True)
 Path("templates").mkdir(exist_ok=True)
 Path("data").mkdir(exist_ok=True)
@@ -21,21 +18,17 @@ Path("data").mkdir(exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-# Database path from environment or default
 DB_PATH = os.getenv('DATABASE_PATH', 'data/karate_tracker.db')
 
-# Database initialization
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     
-    # Students table
     c.execute('''CREATE TABLE IF NOT EXISTS students
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   name TEXT NOT NULL UNIQUE,
                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
-    # Tasks table
     c.execute('''CREATE TABLE IF NOT EXISTS tasks
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   title TEXT NOT NULL,
@@ -44,7 +37,6 @@ def init_db():
                   difficulty_weight REAL DEFAULT 1.0,
                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     
-    # Task completions table
     c.execute('''CREATE TABLE IF NOT EXISTS task_completions
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   student_id INTEGER,
@@ -58,7 +50,6 @@ def init_db():
                   FOREIGN KEY (student_id) REFERENCES students(id),
                   FOREIGN KEY (task_id) REFERENCES tasks(id))''')
     
-    # Active sessions table
     c.execute('''CREATE TABLE IF NOT EXISTS active_sessions
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   student_id INTEGER,
@@ -72,16 +63,13 @@ def init_db():
 
 init_db()
 
-# Helper functions
 def clean_csv_value(value: str) -> str:
-    """Safely clean CSV input"""
     if not value:
         return ""
     cleaned = value.strip().replace('\n', ' ').replace('\r', '')
     return cleaned[:500]
 
 def calculate_difficulty_weight(estimated_time: int) -> float:
-    """Calculate difficulty weight based on estimated time"""
     if estimated_time <= 5:
         return 0.5
     elif estimated_time <= 15:
@@ -92,7 +80,6 @@ def calculate_difficulty_weight(estimated_time: int) -> float:
         return 2.0
 
 def calculate_focus_score(estimated: int, actual: int) -> float:
-    """Calculate focus score based on estimated vs actual time"""
     if estimated == 0:
         return 1.0
     ratio = actual / estimated
@@ -102,11 +89,9 @@ def calculate_focus_score(estimated: int, actual: int) -> float:
         return max(0.1, 1.0 / ratio)
 
 def calculate_impact_score(difficulty: float, focus: float) -> float:
-    """Calculate overall impact score"""
     return (difficulty * 0.4 + focus * 0.6) * 10
 
 def get_student_streak(student_id: int) -> int:
-    """Calculate current streak for student"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     
@@ -136,7 +121,6 @@ def get_student_streak(student_id: int) -> int:
     
     return streak
 
-# Routes
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     conn = sqlite3.connect(DB_PATH)
@@ -185,7 +169,6 @@ async def student_dashboard(request: Request, student_id: int):
     tasks = [{"id": row[0], "title": row[1], "description": row[2], 
               "estimated_time": row[3], "difficulty_weight": row[4]} for row in c.fetchall()]
     
-    # Check for active session
     c.execute('''SELECT a.id, a.task_id, t.title, t.description, t.estimated_time, a.start_time
                  FROM active_sessions a
                  JOIN tasks t ON a.task_id = t.id
@@ -319,7 +302,6 @@ async def finish_task(student_id: int):
 
 @app.post("/task/cancel/{student_id}")
 async def cancel_task(student_id: int):
-    """Cancel the current active task without saving"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     
@@ -333,31 +315,6 @@ async def cancel_task(student_id: int):
         return {"success": True, "message": "Task cancelled"}
     else:
         raise HTTPException(400, "No active task to cancel")
-
-@app.get("/api/session-status/{student_id}")
-async def session_status(student_id: int):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    
-    c.execute('''SELECT a.task_id, t.title, a.start_time
-                 FROM active_sessions a
-                 JOIN tasks t ON a.task_id = t.id
-                 WHERE a.student_id = ?''', (student_id,))
-    
-    session = c.fetchone()
-    conn.close()
-    
-    if session:
-        start_time = datetime.fromisoformat(session[2])
-        elapsed = int((datetime.now() - start_time).total_seconds())
-        return {
-            "active": True,
-            "task_id": session[0],
-            "task_title": session[1],
-            "elapsed": elapsed
-        }
-    
-    return {"active": False}
 
 @app.get("/results/{student_id}", response_class=HTMLResponse)
 async def results(request: Request, student_id: int):
@@ -425,7 +382,6 @@ async def results(request: Request, student_id: int):
 
 @app.post("/student/{student_id}/reset")
 async def reset_student_data(student_id: int):
-    """Reset all data for a student including tasks and completions"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     
@@ -450,7 +406,6 @@ async def reset_student_data(student_id: int):
 
 @app.post("/tasks/clear")
 async def clear_all_tasks():
-    """Delete all tasks from the database"""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     
