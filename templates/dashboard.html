@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ student_name }}'s Dashboard</title>
+    <title>Dashboard</title>
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 </head>
@@ -60,15 +60,6 @@
             </button>
             
             <button 
-                class="btn btn-secondary" 
-                onclick="togglePause()"
-                id="pauseBtn"
-                style="margin-top: 15px;"
-            >
-                ⏸️ Pause
-            </button>
-            
-            <button 
                 class="btn btn-warning" 
                 onclick="cancelTask()"
                 id="cancelBtn"
@@ -103,7 +94,7 @@
 
         <div class="tasks-grid">
             {% for task in tasks %}
-            <div class="task-card {% if active_session and active_session.task_id == task.id %}task-active{% endif %}">
+            <div class="task-card" data-task-id="{{ task.id }}">
                 <h3>{{ task.title }}</h3>
                 {% if task.description %}
                 <p class="task-description">{{ task.description }}</p>
@@ -121,7 +112,7 @@
                 {% if not active_session %}
                 <button 
                     class="btn btn-primary btn-large"
-                    onclick="startTask({{ task.id }}, '{{ task.title|replace("'", "\\'") }}', '{{ task.description|replace("'", "\\'")|default('', true) }}')"
+                    onclick="startTask({{ task.id }}, {{ task.estimated_time }})"
                 >
                     🚀 Start
                 </button>
@@ -139,47 +130,41 @@
     <script>
         const studentId = {{ student_id }};
         let timerInterval;
-        let isPaused = false;
         let autoMode = false;
         let autoModeTaskQueue = [];
         let currentTaskEstimatedTime = 0;
         let elapsedSeconds = 0;
+        let allTasks = {{ tasks | tojson }};
+        let currentTaskId = {% if active_session %}{{ active_session.task_id }}{% else %}null{% endif %};
         
         {% if active_session %}
         elapsedSeconds = {{ active_session.elapsed }};
         currentTaskEstimatedTime = {{ active_session.estimated_time }} * 60;
         
         function updateTimer() {
-            if (!isPaused) {
-                elapsedSeconds++;
-            }
+            elapsedSeconds++;
             
-            // Calculate remaining time
             const remainingSeconds = Math.max(0, currentTaskEstimatedTime - elapsedSeconds);
             const minutes = Math.floor(remainingSeconds / 60);
             const seconds = remainingSeconds % 60;
             
-            // Display countdown timer
             const timerEl = document.getElementById('timer');
             if (timerEl) {
                 if (remainingSeconds > 0) {
-                    timerEl.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                    timerEl.textContent = String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
                     timerEl.style.color = '';
                 } else {
-                    // Timer finished - show overtime
                     const overtimeSeconds = elapsedSeconds - currentTaskEstimatedTime;
                     const overtimeMinutes = Math.floor(overtimeSeconds / 60);
                     const overtimeSecs = overtimeSeconds % 60;
-                    timerEl.textContent = `+${String(overtimeMinutes).padStart(2, '0')}:${String(overtimeSecs).padStart(2, '0')}`;
+                    timerEl.textContent = '+' + String(overtimeMinutes).padStart(2, '0') + ':' + String(overtimeSecs).padStart(2, '0');
                     timerEl.style.color = '#ff6b6b';
                 }
             }
             
-            // Update progress bar if in auto mode
             if (autoMode && currentTaskEstimatedTime > 0) {
                 updateProgressBar();
                 
-                // Auto-advance when time is up
                 if (elapsedSeconds >= currentTaskEstimatedTime) {
                     autoFinishTask();
                 }
@@ -190,109 +175,16 @@
         updateTimer();
         {% endif %}
 
-        async function startTask(taskId, taskTitle, taskDescription) {
+        async function startTask(taskId, estimatedTime) {
             try {
-                const response = await fetch(`/task/start/${studentId}/${taskId}`, {
+                const response = await fetch('/task/start/' + studentId + '/' + taskId, {
                     method: 'POST'
                 });
                 
                 if (response.ok) {
-                    const data = await response.json();
-                    
-                    // Get task estimated time from the tasks array
-                    const allTasks = {{ tasks | tojson }};
-                    const task = allTasks.find(t => t.id === taskId);
-                    if (task) {
-                        currentTaskEstimatedTime = task.estimated_time * 60;
-                    }
-                    
-                    // Create active task card immediately for smooth UX
-                    const tasksSection = document.querySelector('.tasks-grid');
-                    if (tasksSection) {
-                        const activeCard = document.createElement('div');
-                        activeCard.className = 'card active-task-card';
-                        activeCard.id = 'activeTaskCard';
-                        activeCard.innerHTML = `
-                            <h2>🎯 Active Task</h2>
-                            <h3 class="task-title">${taskTitle}</h3>
-                            ${taskDescription ? `<p class="task-description-active">${taskDescription}</p>` : ''}
-                            <div class="timer" id="timer">00:00</div>
-                            <div class="timer-progress" id="timerProgress"></div>
-                            <button class="btn btn-success btn-large" onclick="finishTask()" id="finishBtn">
-                                ✅ Finished!
-                            </button>
-                            <button class="btn btn-secondary" onclick="togglePause()" id="pauseBtn" style="margin-top: 15px;">
-                                ⏸️ Pause
-                            </button>
-                            <button class="btn btn-warning" onclick="cancelTask()" id="cancelBtn" style="margin-top: 15px;">
-                                ❌ Cancel Task
-                            </button>
-                        `;
-                        
-                        // Insert before tasks section
-                        tasksSection.parentNode.insertBefore(activeCard, tasksSection);
-                        
-                        // Scroll to active task
-                        setTimeout(() => {
-                            activeCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        }, 100);
-                        
-                        // Reset timer variables
-                        elapsedSeconds = 0;
-                        isPaused = false;
-                        
-                        // Clear any existing timer
-                        if (timerInterval) {
-                            clearInterval(timerInterval);
-                        }
-                        
-                        // Start timer
-                        timerInterval = setInterval(() => {
-                            if (!isPaused) {
-                                elapsedSeconds++;
-                            }
-                            
-                            // Calculate remaining time
-                            const remainingSeconds = Math.max(0, currentTaskEstimatedTime - elapsedSeconds);
-                            const minutes = Math.floor(remainingSeconds / 60);
-                            const secs = remainingSeconds % 60;
-                            
-                            const timerEl = document.getElementById('timer');
-                            if (timerEl) {
-                                if (remainingSeconds > 0) {
-                                    timerEl.textContent = `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-                                    timerEl.style.color = '';
-                                } else {
-                                    // Timer finished - show overtime
-                                    const overtimeSeconds = elapsedSeconds - currentTaskEstimatedTime;
-                                    const overtimeMinutes = Math.floor(overtimeSeconds / 60);
-                                    const overtimeSecs = overtimeSeconds % 60;
-                                    timerEl.textContent = `+${String(overtimeMinutes).padStart(2, '0')}:${String(overtimeSecs).padStart(2, '0')}`;
-                                    timerEl.style.color = '#ff6b6b';
-                                }
-                            }
-                            
-                            // Update progress bar if in auto mode
-                            if (autoMode && currentTaskEstimatedTime > 0) {
-                                updateProgressBar();
-                                
-                                // Auto-advance when time is up
-                                if (elapsedSeconds >= currentTaskEstimatedTime) {
-                                    clearInterval(timerInterval);
-                                    autoFinishTask();
-                                }
-                            }
-                        }, 1000);
-                        
-                        // Disable all start buttons
-                        document.querySelectorAll('.task-card button').forEach(btn => {
-                            btn.disabled = true;
-                            btn.textContent = 'Finish current task first';
-                            btn.className = 'btn btn-disabled';
-                        });
-                    } else {
-                        window.location.reload();
-                    }
+                    currentTaskEstimatedTime = estimatedTime * 60;
+                    currentTaskId = taskId;
+                    window.location.reload();
                 } else {
                     const error = await response.json();
                     alert(error.detail || 'Error starting task');
@@ -302,36 +194,22 @@
             }
         }
 
-        function togglePause() {
-            isPaused = !isPaused;
-            const pauseBtn = document.getElementById('pauseBtn');
-            if (isPaused) {
-                pauseBtn.textContent = '▶️ Resume';
-                pauseBtn.className = 'btn btn-primary';
-            } else {
-                pauseBtn.textContent = '⏸️ Pause';
-                pauseBtn.className = 'btn btn-secondary';
-            }
-        }
-
         async function startAutoMode() {
             if (!confirm('Start all tasks in sequence? Each task will run for its estimated time and automatically advance to the next.')) {
                 return;
             }
             
             autoMode = true;
-            autoModeTaskQueue = {{ tasks | tojson }};
+            autoModeTaskQueue = allTasks.slice();
             
             if (autoModeTaskQueue.length === 0) {
                 alert('No tasks available');
                 return;
             }
             
-            // Hide the begin button
             const autoBtn = document.getElementById('autoModeBtn');
             if (autoBtn) autoBtn.style.display = 'none';
             
-            // Start first task
             await startNextAutoTask();
         }
 
@@ -344,28 +222,40 @@
                     spread: 100,
                     origin: { y: 0.6 }
                 });
-                setTimeout(() => window.location.reload(), 2000);
+                setTimeout(function() { window.location.reload(); }, 2000);
                 return;
             }
             
             const task = autoModeTaskQueue.shift();
             currentTaskEstimatedTime = task.estimated_time * 60;
             
-            await startTask(task.id, task.title, task.description || '');
+            await startTask(task.id, task.estimated_time);
         }
 
         async function autoFinishTask() {
-            // Automatically finish the task
             await finishTask(true);
         }
 
-        async function finishTask(autoAdvance = false) {
+        function getNextTask() {
+            if (!currentTaskId || allTasks.length === 0) return null;
+            
+            const currentIndex = allTasks.findIndex(t => t.id === currentTaskId);
+            if (currentIndex === -1 || currentIndex === allTasks.length - 1) {
+                return null;
+            }
+            
+            return allTasks[currentIndex + 1];
+        }
+
+        async function finishTask(isAutoMode) {
+            if (typeof isAutoMode === 'undefined') isAutoMode = autoMode;
+            
             const btn = document.getElementById('finishBtn');
             btn.disabled = true;
             btn.textContent = 'Saving...';
             
             try {
-                const response = await fetch(`/task/finish/${studentId}`, {
+                const response = await fetch('/task/finish/' + studentId, {
                     method: 'POST'
                 });
                 
@@ -373,56 +263,45 @@
                     const data = await response.json();
                     clearInterval(timerInterval);
                     
-                    if (!autoAdvance) {
-                        // Show confetti
-                        confetti({
-                            particleCount: 100,
-                            spread: 70,
-                            origin: { y: 0.6 }
-                        });
+                    confetti({
+                        particleCount: 50,
+                        spread: 60,
+                        origin: { y: 0.7 }
+                    });
+                    
+                    if (!isAutoMode) {
+                        const nextTask = getNextTask();
                         
-                        setTimeout(() => {
-                            confetti({
-                                particleCount: 50,
-                                angle: 60,
-                                spread: 55,
-                                origin: { x: 0 }
-                            });
-                        }, 200);
-                        
-                        setTimeout(() => {
-                            confetti({
-                                particleCount: 50,
-                                angle: 120,
-                                spread: 55,
-                                origin: { x: 1 }
-                            });
-                        }, 400);
-                        
-                        // Show completion message
-                        alert(`🎉 Great job!\n\nTime: ${data.time_display}\nFocus Score: ${data.focus_score}/1.0\nImpact Score: ${data.impact_score}/10.0`);
+                        if (nextTask) {
+                            const shouldContinue = confirm(
+                                '🎉 Great job!\n\n' +
+                                'Time: ' + data.time_display + '\n' +
+                                'Focus Score: ' + data.focus_score + '/1.0\n' +
+                                'Impact Score: ' + data.impact_score + '/10.0\n\n' +
+                                'Start next task: ' + nextTask.title + '?'
+                            );
+                            
+                            if (shouldContinue) {
+                                await startTask(nextTask.id, nextTask.estimated_time);
+                                return;
+                            }
+                        } else {
+                            alert(
+                                '🎉 Great job!\n\n' +
+                                'Time: ' + data.time_display + '\n' +
+                                'Focus Score: ' + data.focus_score + '/1.0\n' +
+                                'Impact Score: ' + data.impact_score + '/10.0\n\n' +
+                                '✅ All tasks completed!'
+                            );
+                        }
                     }
                     
-                    // Remove active card
-                    const activeCard = document.getElementById('activeTaskCard');
-                    if (activeCard) {
-                        activeCard.remove();
-                    }
-                    
-                    if (autoMode) {
-                        // Small celebration
-                        confetti({
-                            particleCount: 30,
-                            spread: 50,
-                            origin: { y: 0.7 }
-                        });
-                        
-                        // Continue to next task
-                        setTimeout(() => {
+                    if (isAutoMode) {
+                        setTimeout(function() {
                             startNextAutoTask();
                         }, 1000);
                     } else {
-                        setTimeout(() => window.location.reload(), 2000);
+                        setTimeout(function() { window.location.reload(); }, 2000);
                     }
                 } else {
                     const error = await response.json();
@@ -437,7 +316,7 @@
             }
         }
 
-        async function handleUpload(event, formId, inputId) {
+        async function handleUpload(event, inputId) {
             event.preventDefault();
             
             const fileInput = document.getElementById(inputId);
@@ -452,14 +331,14 @@
             formData.append('file', file);
             
             try {
-                const response = await fetch(`/upload-tasks/${studentId}`, {
+                const response = await fetch('/upload-tasks/' + studentId, {
                     method: 'POST',
                     body: formData
                 });
                 
                 if (response.ok) {
                     const data = await response.json();
-                    alert(`✅ Successfully added ${data.tasks_added} tasks!`);
+                    alert('✅ Successfully added ' + data.tasks_added + ' tasks!');
                     window.location.reload();
                 } else {
                     alert('Error uploading file');
@@ -485,12 +364,12 @@
                 const remainingMinutes = Math.ceil(remainingSeconds / 60);
                 
                 if (remainingSeconds > 0) {
-                    progressEl.textContent = `${Math.round(percentage)}% complete (${remainingMinutes} min remaining)`;
+                    progressEl.textContent = Math.round(percentage) + '% complete (' + remainingMinutes + ' min remaining)';
                     progressEl.style.color = '';
                 } else {
                     const overtimeSeconds = elapsedSeconds - currentTaskEstimatedTime;
                     const overtimeMinutes = Math.floor(overtimeSeconds / 60);
-                    progressEl.textContent = `Time's up! (+${overtimeMinutes} min overtime)`;
+                    progressEl.textContent = 'Time\'s up! (+' + overtimeMinutes + ' min overtime)';
                     progressEl.style.color = '#ff6b6b';
                     progressEl.style.fontWeight = 'bold';
                 }
@@ -498,10 +377,16 @@
         }
 
         {% if not active_session %}
-        document.getElementById('uploadForm')?.addEventListener('submit', (e) => handleUpload(e, 'uploadForm', 'fileInput'));
+        var uploadForm = document.getElementById('uploadForm');
+        if (uploadForm) {
+            uploadForm.addEventListener('submit', function(e) { handleUpload(e, 'fileInput'); });
+        }
         {% endif %}
         
-        document.getElementById('uploadFormExtra')?.addEventListener('submit', (e) => handleUpload(e, 'uploadFormExtra', 'fileInputExtra'));
+        var uploadFormExtra = document.getElementById('uploadFormExtra');
+        if (uploadFormExtra) {
+            uploadFormExtra.addEventListener('submit', function(e) { handleUpload(e, 'fileInputExtra'); });
+        }
 
         async function cancelTask() {
             if (!confirm('Cancel this task? Your progress will not be saved.')) {
@@ -509,7 +394,7 @@
             }
             
             try {
-                const response = await fetch(`/task/cancel/${studentId}`, {
+                const response = await fetch('/task/cancel/' + studentId, {
                     method: 'POST'
                 });
                 
@@ -535,13 +420,13 @@
             }
             
             try {
-                const response = await fetch(`/student/${studentId}/reset`, {
+                const response = await fetch('/student/' + studentId + '/reset', {
                     method: 'POST'
                 });
                 
                 if (response.ok) {
                     const data = await response.json();
-                    alert(`✅ Session reset!\n${data.completions_deleted} completed tasks deleted.`);
+                    alert('✅ Session reset!\n' + data.completions_deleted + ' completed tasks deleted.');
                     window.location.reload();
                 } else {
                     const error = await response.json();
@@ -568,7 +453,7 @@
                 
                 if (response.ok) {
                     const data = await response.json();
-                    alert(`✅ All tasks cleared!\n\n${data.tasks_deleted} tasks deleted\n${data.completions_deleted} completions deleted\n\nYou can now upload a new CSV file.`);
+                    alert('✅ All tasks cleared!\n\n' + data.tasks_deleted + ' tasks deleted\n' + data.completions_deleted + ' completions deleted\n\nYou can now upload a new CSV file.');
                     window.location.reload();
                 } else {
                     const error = await response.json();

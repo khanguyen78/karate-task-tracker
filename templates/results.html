@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ student_name }}'s Results</title>
+    <title>Results</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -124,14 +124,14 @@
             }
             
             try {
-                const response = await fetch(`/student/${studentId}/reset`, {
+                const response = await fetch('/student/' + studentId + '/reset', {
                     method: 'POST'
                 });
                 
                 if (response.ok) {
                     const data = await response.json();
-                    alert(`✅ All data reset!\n${data.completions_deleted} completed tasks deleted.`);
-                    window.location.href = `/student/${studentId}`;
+                    alert('✅ All data reset!\n' + data.completions_deleted + ' completed tasks deleted.');
+                    window.location.href = '/student/' + studentId;
                 } else {
                     const error = await response.json();
                     alert(error.detail || 'Error resetting data');
