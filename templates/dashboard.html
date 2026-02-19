@@ -95,7 +95,12 @@
         <div class="tasks-grid">
             {% for task in tasks %}
             <div class="task-card" data-task-id="{{ task.id }}">
-                <h3>{{ task.title }}</h3>
+                <div class="task-header-row">
+                    <h3>{{ task.title }}</h3>
+                    <button onclick="editTask({{ task.id }})" class="btn-icon" title="Edit task">
+                        ✏️
+                    </button>
+                </div>
                 {% if task.description %}
                 <p class="task-description">{{ task.description }}</p>
                 {% endif %}
@@ -174,6 +179,10 @@
         timerInterval = setInterval(updateTimer, 1000);
         updateTimer();
         {% endif %}
+
+        function editTask(taskId) {
+            window.location.href = '/task/' + taskId + '/edit';
+        }
 
         async function startTask(taskId, estimatedTime) {
             try {
