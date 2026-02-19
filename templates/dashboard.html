@@ -447,22 +447,26 @@
         }
 
         async function clearAllTasks() {
-            if (!confirm('⚠️ WARNING: This will delete ALL tasks and ALL completion history for ALL students!\n\nThis cannot be undone. Are you absolutely sure?')) {
+            if (!confirm('⚠️ WARNING: This will delete ALL your tasks and completion history!\n\nThis cannot be undone. Are you absolutely sure?')) {
                 return;
             }
             
-            if (!confirm('This will clear everything. You will need to upload a new CSV. Continue?')) {
+            if (!confirm('This will clear your tasks. You will need to upload a new CSV. Continue?')) {
                 return;
             }
             
             try {
+                const formData = new FormData();
+                formData.append('student_id', studentId);
+
                 const response = await fetch('/tasks/clear', {
-                    method: 'POST'
+                    method: 'POST',
+                    body: formData
                 });
                 
                 if (response.ok) {
                     const data = await response.json();
-                    alert('✅ All tasks cleared!\n\n' + data.tasks_deleted + ' tasks deleted\n' + data.completions_deleted + ' completions deleted\n\nYou can now upload a new CSV file.');
+                    alert('✅ Your tasks have been cleared!\n\n' + data.tasks_deleted + ' tasks deleted\n' + data.completions_deleted + ' completions deleted\n\nYou can now upload a new CSV file.');
                     window.location.reload();
                 } else {
                     const error = await response.json();
