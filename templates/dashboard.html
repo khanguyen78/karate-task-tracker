@@ -466,8 +466,8 @@
                 
                 if (response.ok) {
                     const data = await response.json();
-                    alert('✅ Your tasks have been cleared!\n\n' + data.tasks_deleted + ' tasks deleted\n' + data.completions_deleted + ' completions deleted\n\nYou can now upload a new CSV file.');
-                    window.location.reload();
+                    alert('✅ Your tasks have been cleared!\n\n' + data.tasks_deleted + ' tasks deleted\n' + data.completions_deleted + ' completions deleted');
+                    window.location.href = '/';
                 } else {
                     const error = await response.json();
                     alert(error.detail || 'Error clearing tasks');

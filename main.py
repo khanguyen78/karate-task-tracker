@@ -492,10 +492,12 @@ async def clear_all_tasks(student_id: int = Form(...)):
     c.execute("DELETE FROM tasks WHERE student_id = ?", (student_id,))
     tasks_deleted = c.rowcount
 
+    c.execute("DELETE FROM students WHERE id = ?", (student_id,))
+
     conn.commit()
     conn.close()
 
-    logger.info(f"Student {student_id} cleared their tasks: {tasks_deleted} tasks and {completions_deleted} completions deleted")
+    logger.info(f"Student {student_id} cleared their tasks and was removed: {tasks_deleted} tasks and {completions_deleted} completions deleted")
     return {
         "success": True,
         "tasks_deleted": tasks_deleted,
