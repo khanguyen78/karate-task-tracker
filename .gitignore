@@ -227,4 +227,7 @@ Thumbs.db
 *.log
 .env
 .env.local
-data/
+data/karate_tracker.db
+data/*
+karate_tracker.db
+

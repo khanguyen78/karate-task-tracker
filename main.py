@@ -7,6 +7,8 @@ import sqlite3
 import csv
 import io
 import os
+import logging
+import logging.handlers
 from pathlib import Path
 
 app = FastAPI()
@@ -19,6 +21,51 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 DB_PATH = os.getenv('DATABASE_PATH', 'data/karate_tracker.db')
+
+# --- Logging configuration ---
+# LOG_ENABLED: set to "true" to enable file logging (default: false)
+# LOG_LEVEL:   DEBUG, INFO, WARNING, ERROR, CRITICAL (default: INFO)
+# LOG_PATH:    directory to write karate_tracker.log (default: /var/log)
+
+LOG_ENABLED = os.getenv('LOG_ENABLED', 'false').lower() == 'true'
+LOG_LEVEL_STR = os.getenv('LOG_LEVEL', 'INFO').upper()
+LOG_PATH = os.getenv('LOG_PATH', '/var/log')
+
+LOG_LEVELS = {
+    'DEBUG': logging.DEBUG,
+    'INFO': logging.INFO,
+    'WARNING': logging.WARNING,
+    'ERROR': logging.ERROR,
+    'CRITICAL': logging.CRITICAL,
+}
+LOG_LEVEL = LOG_LEVELS.get(LOG_LEVEL_STR, logging.INFO)
+
+logger = logging.getLogger('karate_tracker')
+logger.setLevel(LOG_LEVEL)
+
+if LOG_ENABLED:
+    log_dir = Path(LOG_PATH)
+    log_file = log_dir / 'karate_tracker.log'
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        file_handler = logging.handlers.RotatingFileHandler(
+            log_file, maxBytes=5 * 1024 * 1024, backupCount=3
+        )
+        file_handler.setLevel(LOG_LEVEL)
+        formatter = logging.Formatter(
+            '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+        logger.info(f"Logging initialized — level={LOG_LEVEL_STR}, file={log_file}")
+    except PermissionError:
+        logging.basicConfig(level=LOG_LEVEL)
+        logger.warning(
+            f"Cannot write to {log_file} (permission denied). Falling back to stderr."
+        )
+else:
+    logger.addHandler(logging.NullHandler())
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -162,9 +209,11 @@ async def create_student(name: str = Form(...)):
         c.execute("INSERT INTO students (name) VALUES (?)", (name,))
         conn.commit()
         student_id = c.lastrowid
+        logger.info(f"New student created: '{name}' (id={student_id})")
     except sqlite3.IntegrityError:
         c.execute("SELECT id FROM students WHERE name = ?", (name,))
         student_id = c.fetchone()[0]
+        logger.debug(f"Student '{name}' already exists (id={student_id}), redirecting")
     
     conn.close()
     return RedirectResponse(f"/student/{student_id}", status_code=303)
@@ -178,7 +227,10 @@ async def student_dashboard(request: Request, student_id: int):
     student = c.fetchone()
     if not student:
         conn.close()
+        logger.warning(f"Dashboard requested for unknown student_id={student_id}")
         raise HTTPException(404, "Student not found")
+    
+    logger.debug(f"Dashboard loaded for student '{student[0]}' (id={student_id})")
     
     c.execute("SELECT id, title, description, estimated_time, difficulty_weight FROM tasks WHERE student_id = ?", (student_id,))
     tasks = [{"id": row[0], "title": row[1], "description": row[2], 
@@ -219,7 +271,10 @@ async def student_dashboard(request: Request, student_id: int):
 @app.post("/upload-tasks/{student_id}")
 async def upload_tasks(student_id: int, file: UploadFile = File(...)):
     if not file.filename.endswith('.csv'):
+        logger.warning(f"Student {student_id} attempted to upload non-CSV file: {file.filename}")
         raise HTTPException(400, "Please upload a CSV file")
+    
+    logger.info(f"Student {student_id} uploading task CSV: {file.filename}")
     
     contents = await file.read()
     csv_file = io.StringIO(contents.decode('utf-8'))
@@ -248,6 +303,7 @@ async def upload_tasks(student_id: int, file: UploadFile = File(...)):
     conn.commit()
     conn.close()
     
+    logger.info(f"Student {student_id} CSV upload complete: {tasks_added} tasks added from '{file.filename}'")
     return {"success": True, "tasks_added": tasks_added}
 
 @app.post("/task/start/{student_id}/{task_id}")
@@ -258,6 +314,7 @@ async def start_task(student_id: int, task_id: int):
     c.execute("SELECT id FROM active_sessions WHERE student_id = ?", (student_id,))
     if c.fetchone():
         conn.close()
+        logger.warning(f"Student {student_id} tried to start task {task_id} but already has an active session")
         raise HTTPException(400, "Please finish your current task first!")
     
     start_time = datetime.now().isoformat()
@@ -267,6 +324,7 @@ async def start_task(student_id: int, task_id: int):
     conn.commit()
     conn.close()
     
+    logger.info(f"Student {student_id} started task {task_id} at {start_time}")
     return {"success": True, "start_time": start_time}
 
 @app.post("/task/finish/{student_id}")
@@ -282,6 +340,7 @@ async def finish_task(student_id: int):
     session = c.fetchone()
     if not session:
         conn.close()
+        logger.warning(f"Student {student_id} tried to finish a task but has no active session")
         raise HTTPException(400, "No active task found")
     
     session_id, task_id, start_time, estimated_time, difficulty = session
@@ -304,6 +363,11 @@ async def finish_task(student_id: int):
     conn.commit()
     conn.close()
     
+    logger.info(
+        f"Student {student_id} finished task {task_id}: "
+        f"actual={actual_time}m, estimated={estimated_time}m, "
+        f"focus={round(focus_score,2)}, impact={round(impact_score,2)}"
+    )
     return {
         "success": True,
         "actual_time": actual_time,
@@ -324,8 +388,10 @@ async def cancel_task(student_id: int):
     conn.close()
     
     if deleted > 0:
+        logger.info(f"Student {student_id} cancelled their active task")
         return {"success": True, "message": "Task cancelled"}
     else:
+        logger.warning(f"Student {student_id} tried to cancel but had no active task")
         raise HTTPException(400, "No active task to cancel")
 
 @app.get("/results/{student_id}", response_class=HTMLResponse)
@@ -406,10 +472,35 @@ async def reset_student_data(student_id: int):
     conn.commit()
     conn.close()
     
+    logger.info(f"Student {student_id} session data reset: {completions_deleted} completions deleted")
     return {
         "success": True,
         "completions_deleted": completions_deleted,
         "message": "All session data has been reset"
+    }
+
+@app.post("/tasks/clear")
+async def clear_all_tasks(student_id: int = Form(...)):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    c.execute("DELETE FROM task_completions WHERE student_id = ?", (student_id,))
+    completions_deleted = c.rowcount
+
+    c.execute("DELETE FROM active_sessions WHERE student_id = ?", (student_id,))
+
+    c.execute("DELETE FROM tasks WHERE student_id = ?", (student_id,))
+    tasks_deleted = c.rowcount
+
+    conn.commit()
+    conn.close()
+
+    logger.info(f"Student {student_id} cleared their tasks: {tasks_deleted} tasks and {completions_deleted} completions deleted")
+    return {
+        "success": True,
+        "tasks_deleted": tasks_deleted,
+        "completions_deleted": completions_deleted,
+        "message": "All tasks and related data have been cleared"
     }
 
 @app.post("/tasks/clear/{student_id}")
@@ -428,6 +519,7 @@ async def clear_student_tasks(student_id: int):
     conn.commit()
     conn.close()
     
+    logger.info(f"Student {student_id} cleared all tasks: {tasks_deleted} tasks, {completions_deleted} completions deleted")
     return {
         "success": True,
         "tasks_deleted": tasks_deleted,
@@ -488,6 +580,7 @@ async def update_task(
     conn.commit()
     conn.close()
     
+    logger.info(f"Student {student_id} updated task {task_id}: title='{title}', estimated_time={estimated_time}m")
     return {"success": True, "message": "Task updated successfully"}
 
 @app.delete("/task/{task_id}")
@@ -510,11 +603,13 @@ async def delete_task(task_id: int, student_id: int):
     conn.close()
     
     if deleted > 0:
+        logger.info(f"Student {student_id} deleted task {task_id} (had {completion_count} completions)")
         return {
             "success": True,
             "message": f"Task deleted (had {completion_count} completions in history)"
         }
     else:
+        logger.warning(f"Student {student_id} tried to delete task {task_id} but it was not found")
         raise HTTPException(404, "Task not found")
 
 if __name__ == "__main__":
