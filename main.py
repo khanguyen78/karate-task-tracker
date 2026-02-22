@@ -131,12 +131,12 @@ def clean_csv_value(value: str) -> str:
     return cleaned[:500]
 
 def calculate_difficulty_weight(estimated_time: int) -> float:
-    """estimated_time is in minutes"""
-    if estimated_time <= 5:
+    """estimated_time is in seconds"""
+    if estimated_time <= 300:
         return 0.5
-    elif estimated_time <= 15:
+    elif estimated_time <= 900:
         return 1.0
-    elif estimated_time <= 30:
+    elif estimated_time <= 1800:
         return 1.5
     else:
         return 2.0
@@ -292,7 +292,7 @@ async def upload_tasks(student_id: int, file: UploadFile = File(...)):
         try:
             estimated_time = int(''.join(filter(str.isdigit, time_str)))
         except:
-            estimated_time = 15  # default 15 minutes
+            estimated_time = 900  # default 15 minutes in seconds
         
         if title:
             difficulty = calculate_difficulty_weight(estimated_time)
@@ -347,7 +347,7 @@ async def finish_task(student_id: int):
     
     start = datetime.fromisoformat(start_time)
     end = datetime.now()
-    actual_time = int((end - start).total_seconds()) // 60  # store as minutes
+    actual_time = int((end - start).total_seconds())  # store as seconds
 
     focus_score = calculate_focus_score(estimated_time, actual_time)
     impact_score = calculate_impact_score(difficulty, focus_score)
@@ -365,13 +365,13 @@ async def finish_task(student_id: int):
     
     logger.info(
         f"Student {student_id} finished task {task_id}: "
-        f"actual={actual_time}m, estimated={estimated_time}m, "
+        f"actual={actual_time}s, estimated={estimated_time}s, "
         f"focus={round(focus_score,2)}, impact={round(impact_score,2)}"
     )
     return {
         "success": True,
         "actual_time": actual_time,
-        "time_display": f"{actual_time}m",
+        "time_display": f"{actual_time}s",
         "focus_score": round(focus_score, 2),
         "impact_score": round(impact_score, 2)
     }
@@ -417,8 +417,8 @@ async def results(request: Request, student_id: int):
     total_focus = 0
     
     for row in c.fetchall():
-        actual_minutes = row[4]
-        total_time += actual_minutes
+        actual_seconds = row[4]
+        total_time += actual_seconds
         total_focus += row[5]
         
         completions.append({
@@ -426,8 +426,8 @@ async def results(request: Request, student_id: int):
             "title": row[1],
             "description": row[2],
             "estimated_time": row[3],
-            "actual_time_display": f"{actual_minutes}m",
-            "actual_time": actual_minutes,
+            "actual_time_display": f"{actual_seconds}s",
+            "actual_time": actual_seconds,
             "focus_score": round(row[5], 2),
             "impact_score": round(row[6], 2),
             "completed_at": row[7]
@@ -436,9 +436,6 @@ async def results(request: Request, student_id: int):
     count = len(completions)
     avg_focus = round(total_focus / count, 2) if count > 0 else 0
     
-    total_hours = total_time // 60
-    remaining_minutes = total_time % 60
-
     streak = get_student_streak(student_id)
     
     conn.close()
@@ -449,7 +446,7 @@ async def results(request: Request, student_id: int):
         "student_name": student[0],
         "completions": completions,
         "total_tasks": count,
-        "total_time_display": f"{total_hours}h {remaining_minutes}m" if total_hours > 0 else f"{remaining_minutes}m",
+        "total_time_display": f"{total_time}s",
         "avg_focus_score": avg_focus,
         "streak": streak
     })
@@ -567,7 +564,7 @@ async def update_task(
         raise HTTPException(400, "Title must be at least 2 characters")
     
     if estimated_time < 1:
-        raise HTTPException(400, "Estimated time must be at least 1 minute")
+        raise HTTPException(400, "Estimated time must be at least 1 second")
     
     difficulty = calculate_difficulty_weight(estimated_time)
     
@@ -582,7 +579,7 @@ async def update_task(
     conn.commit()
     conn.close()
     
-    logger.info(f"Student {student_id} updated task {task_id}: title='{title}', estimated_time={estimated_time}m")
+    logger.info(f"Student {student_id} updated task {task_id}: title='{title}', estimated_time={estimated_time}s")
     return {"success": True, "message": "Task updated successfully"}
 
 @app.delete("/task/{task_id}")

@@ -1,45 +1,38 @@
 task,description,estimated_time
-Tie your belt #1,Practice tying belt correctly and neatly, 1
-Tie your belt #2,Practice tying belt again, 1
-Tie your belt #3,Practice tying belt again, 1
-Student Oath,Read the student oath and stand still, 1
-Warm ups #1,Run 10 laps, 2
-Warm ups #2,30 pushups, 1
-Warm ups #3,30 situps, 1
-Warm ups #4,Run 10 laps, 2
-Warm ups #5,30 pushups, 1
-Warm ups #6,30 situps, 1
-Horse Riding Stance Punch #1, 50 punches - remember to ki-ap, 2
-Horse Riding Stance Punch #2, 50 punches - remember to ki-ap, 2
-Horse Riding Stance Punch #3, 50 punches - remember to ki-ap, 2
-Front stance Punch #1,5 forward and 5 backward,1
-Front stance Punch #2,5 forward and 5 backward,1
-Front stance Punch #3,5 forward and 5 backward,1
-Front stance low block #1,5 forward and 5 backward,1
-Front stance low block #2,5 forward and 5 backward,1
-Front stance low block #3,5 forward and 5 backward,1
-Water break,water break,1
-Side Kick (stationary), 10 kicks each leg - Ki-ap when you change legs, 1
-Side Kick (cross behind)), 10 kicks each leg - Ki-ap when you change legs, 1
-Side Kick (jump)3, 10 kicks each leg - Ki-ap when you change legs, 1
-Side Kick (stationary), 10 kicks each leg - Ki-ap when you change legs, 1
-Side Kick (cross behind)), 10 kicks each leg - Ki-ap when you change legs,1
-Side Kick (jump)3, 10 kicks each leg - Ki-ap when you change legs, 1
-Round house kick (stationary), 10 count: left leg and right leg, 1
-Round house kick (cross in front), 10 count: left leg and right leg, 1
-Round house kick (jump), 10 count: left leg and right leg, 1
-Round house kick (stationary), 10 count: left leg and right leg, 1
-Round house kick (cross in front), 10 count: left leg and right leg, 1
-Round house kick (jump), 10 count: left leg and right leg, 1
-Blocking drills #1,20 blocks - use the blockers,1
-Blocking drills #2,20 blocks - use the blockers,1
-Blocking drills #3,20 blocks - use the blockers,1
-Punch & block drills #1,10 punches each hand - use punch targets,1
-Punch & block drills #2,10 punches each hand - use punch targets,1
-Punch & block drills #3,10 punches each hand - use punch targets,1
-Kata - Chon Ji #1,Practice first kata - Your goal is to get to 19 steps - follow the count and stay together,3
-Kata - Chon Ji #2,Practice first kata - Your goal is to get to 19 steps - follow the count and stay together,3
-Kata - Chon Ji #3,Practice first kata - Your goal is to get to 19 steps - follow the count and stay together,3
-Sparring, wear your gloves. Practice kicks and punches with your partner, 5
-Cooldown and meditation, close your eyes(optional). sit on knees do not move, 1
-Student Oath,Remember to stand in the student oath stanch,1
+Tie your belt #1,Practice tying belt correctly and neatly, 60
+Tie your belt #2,Practice tying belt again, 60
+Tie your belt #3,Practice tying belt again, 60
+Student Oath,Read the student oath and stand still, 60
+Warm ups Run, Run 10 laps, 120
+Warm ups (Planks), Hold plank position for 60 seconds, 60
+Warm ups Situps, 20 situps, 60
+Warm ups Run,Run 10 laps, 120
+Warm ups Pushups, 20 pushups, 60
+Warm ups (Planks), Hold plank position for 60 seconds, 60
+Horse Riding Stance Punch, 50 punches - remember to ki-ap, 120
+Horse Riding Stance Low block#1, 50 low blocks - remember to ki-ap, 120
+Front stance Punch #1,5 forward and 5 backward, 60
+Front stance Punch #2,5 forward and 5 backward, 60
+Front stance Punch #3,5 forward and 5 backward, 60
+Front stance low block #1,5 forward and 5 backward, 60
+Front stance low block #2,5 forward and 5 backward, 60
+Front stance low block #3,5 forward and 5 backward, 60
+Water break,water break, 60
+Side Kick (stationary), 10 kicks each leg - Ki-ap when you change legs, 60
+Side Kick (cross behind), 10 kicks each leg - Ki-ap when you change legs, 60
+Side Kick (jump), 10 kicks each leg - Ki-ap when you change legs, 60
+Round house kick (stationary), 10 count: left leg and right leg, 60
+Round house kick (cross in front), 10 count: left leg and right leg, 60
+Round house kick (jump), 10 count: left leg and right leg, 60
+Blocking drills #1,20 blocks - use the blockers, 60
+Blocking drills #2,20 blocks - use the blockers, 60
+Blocking drills #3,20 blocks - use the blockers, 60
+Punch & block drills #1, 600 punches each hand - use punch targets, 60
+Punch & block drills #2, 600 punches each hand - use punch targets, 60
+Punch & block drills #3, 600 punches each hand - use punch targets, 60
+Kata - Chon Ji #1,Practice first kata - Your goal is to get to 19 steps - follow the count and stay together, 180
+Kata - Chon Ji #2,Practice first kata - Your goal is to get to 19 steps - follow the count and stay together, 180
+Kata - Chon Ji #3,Practice first kata - Your goal is to get to 19 steps - follow the count and stay together, 180
+Sparring, wear your gloves. Practice kicks and punches with your partner, 300
+Cooldown and meditation, close your eyes(optional). sit on knees do not move, 60
+Student Oath,Remember to stand in the student oath stanch, 60
