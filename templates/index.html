@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kha's Karate Task Tracker</title>
+    <title>Karate Task Tracker</title>
     <link rel="stylesheet" href="/static/style.css">
     <style>
         .instructions-grid {
@@ -199,7 +199,7 @@
                 <ol class="steps">
                     <li>Open any spreadsheet app (Excel, Google Sheets, Numbers) or a plain text editor like Notepad.</li>
                     <li>Add the header row exactly as: <strong>task, description, estimated_time</strong></li>
-                    <li>Fill in one task per row. The <strong>estimated_time</strong> column is in <strong>minutes</strong>. Description is optional — leave it blank but keep the comma.</li>
+                    <li>Fill in one task per row. The <strong>estimated_time</strong> column is in <strong>seconds</strong>. Description is optional — leave it blank but keep the comma.</li>
                     <li>Export the file as <strong>.csv</strong>:
                         <ul class="sub-steps">
                             <li><strong>Excel:</strong> File → Save As → CSV</li>
@@ -213,15 +213,14 @@
                 <h3>📋 Format &amp; Example</h3>
                 <div class="csv-example">
 <span class="csv-header">task,description,estimated_time</span>
-<span class="csv-row">Front Kick,Practice front kick technique,10</span>
-<span class="csv-row">Roundhouse Kick,Focus on hip rotation,15</span>
-<span class="csv-row">Kata Heian Shodan,Full kata run-throughs,20</span>
-<span class="csv-row">Sparring Drills,Partner sparring combos,30</span>
-<span class="csv-row">Cool Down Stretches,,5</span>
+<span class="csv-row">Front Kick,Practice front kick technique,600</span>
+<span class="csv-row">Roundhouse Kick,Focus on hip rotation,900</span>
+<span class="csv-row">Kata Heian Shodan,Full kata run-throughs,1200</span>
+<span class="csv-row">Sparring Drills,Partner sparring combos,1800</span>
+<span class="csv-row">Cool Down Stretches,,300</span>
                 </div>
                 <p class="note">⚠️ The header row must be included. If you skip the description, keep the comma: <code>Cool Down,,5</code></p>
                 <p class="note">💡 Each student's CSV is private — uploading only adds tasks to your own account, not anyone else's.</p>
-                <p class="note">⚠️ Note that this application runs in a Docker container and currently in beta testing. Any information that you upload maybe lost on the next build & deploy. You may need to re-upload tasks at any point so please be sure to save a local copy.</code></p>
             </div>
         </div>
 

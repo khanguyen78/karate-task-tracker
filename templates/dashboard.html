@@ -105,7 +105,7 @@
                 <p class="task-description">{{ task.description }}</p>
                 {% endif %}
                 <div class="task-meta">
-                    <span class="time-badge">⏱️ ~{{ task.estimated_time }} min</span>
+                    <span class="time-badge">⏱️ ~{{ task.estimated_time }} sec</span>
                     <span class="difficulty-badge">
                         {% if task.difficulty_weight <= 0.5 %}🟢 Easy
                         {% elif task.difficulty_weight <= 1.0 %}🟡 Medium
@@ -144,25 +144,21 @@
         
         {% if active_session %}
         elapsedSeconds = {{ active_session.elapsed }};
-        currentTaskEstimatedTime = {{ active_session.estimated_time }} * 60;
+        currentTaskEstimatedTime = {{ active_session.estimated_time }};
         
         function updateTimer() {
             elapsedSeconds++;
             
             const remainingSeconds = Math.max(0, currentTaskEstimatedTime - elapsedSeconds);
-            const minutes = Math.floor(remainingSeconds / 60);
-            const seconds = remainingSeconds % 60;
             
             const timerEl = document.getElementById('timer');
             if (timerEl) {
                 if (remainingSeconds > 0) {
-                    timerEl.textContent = String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+                    timerEl.textContent = remainingSeconds + 's';
                     timerEl.style.color = '';
                 } else {
                     const overtimeSeconds = elapsedSeconds - currentTaskEstimatedTime;
-                    const overtimeMinutes = Math.floor(overtimeSeconds / 60);
-                    const overtimeSecs = overtimeSeconds % 60;
-                    timerEl.textContent = '+' + String(overtimeMinutes).padStart(2, '0') + ':' + String(overtimeSecs).padStart(2, '0');
+                    timerEl.textContent = '+' + overtimeSeconds + 's';
                     timerEl.style.color = '#ff6b6b';
                 }
             }
@@ -178,6 +174,7 @@
         
         timerInterval = setInterval(updateTimer, 1000);
         updateTimer();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         {% endif %}
 
         function editTask(taskId) {
@@ -191,8 +188,9 @@
                 });
                 
                 if (response.ok) {
-                    currentTaskEstimatedTime = estimatedTime * 60;
+                    currentTaskEstimatedTime = estimatedTime;
                     currentTaskId = taskId;
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
                     window.location.reload();
                 } else {
                     const error = await response.json();
@@ -236,7 +234,7 @@
             }
             
             const task = autoModeTaskQueue.shift();
-            currentTaskEstimatedTime = task.estimated_time * 60;
+            currentTaskEstimatedTime = task.estimated_time;
             
             await startTask(task.id, task.estimated_time);
         }
@@ -370,15 +368,13 @@
             if (progressEl && currentTaskEstimatedTime > 0) {
                 const percentage = Math.min((elapsedSeconds / currentTaskEstimatedTime) * 100, 100);
                 const remainingSeconds = Math.max(0, currentTaskEstimatedTime - elapsedSeconds);
-                const remainingMinutes = Math.ceil(remainingSeconds / 60);
                 
                 if (remainingSeconds > 0) {
-                    progressEl.textContent = Math.round(percentage) + '% complete (' + remainingMinutes + ' min remaining)';
+                    progressEl.textContent = Math.round(percentage) + '% complete (' + remainingSeconds + 's remaining)';
                     progressEl.style.color = '';
                 } else {
                     const overtimeSeconds = elapsedSeconds - currentTaskEstimatedTime;
-                    const overtimeMinutes = Math.floor(overtimeSeconds / 60);
-                    progressEl.textContent = 'Time\'s up! (+' + overtimeMinutes + ' min overtime)';
+                    progressEl.textContent = 'Time\'s up! (+' + overtimeSeconds + 's overtime)';
                     progressEl.style.color = '#ff6b6b';
                     progressEl.style.fontWeight = 'bold';
                 }
