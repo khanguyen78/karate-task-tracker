@@ -304,6 +304,8 @@
         async function finishTask(isAutoMode) {
             if (typeof isAutoMode === 'undefined') isAutoMode = autoMode;
             
+            playDing();
+
             const btn = document.getElementById('finishBtn');
             btn.disabled = true;
             btn.textContent = 'Saving...';
