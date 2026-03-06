@@ -58,24 +58,12 @@
             >
                 ✅ Finished!
             </button>
-            
-            <button 
-                class="btn btn-warning" 
-                onclick="cancelTask()"
-                id="cancelBtn"
-                style="margin-top: 15px;"
-            >
-                ❌ Cancel Task
-            </button>
         </div>
         {% endif %}
 
         <div class="tasks-header">
             <h2>Available Tasks</h2>
             <div class="task-header-buttons">
-                <button onclick="showUploadForm()" class="btn btn-secondary btn-small">
-                    + Add More Tasks
-                </button>
                 <button onclick="clearAllTasks()" class="btn btn-warning btn-small">
                     🗑️ Clear All Tasks
                 </button>
@@ -146,7 +134,9 @@
         elapsedSeconds = {{ active_session.elapsed }};
         currentTaskEstimatedTime = {{ active_session.estimated_time }};
         
-        function updateTimer() {
+        let advancing = false;
+
+        async function updateTimer() {
             elapsedSeconds++;
             
             const remainingSeconds = Math.max(0, currentTaskEstimatedTime - elapsedSeconds);
@@ -163,11 +153,47 @@
                 }
             }
             
-            if (autoMode && currentTaskEstimatedTime > 0) {
-                updateProgressBar();
-                
-                if (elapsedSeconds >= currentTaskEstimatedTime) {
-                    autoFinishTask();
+            function playDing() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+                // First tone — high partial (the "ding" attack)
+                const osc1 = ctx.createOscillator();
+                const gain1 = ctx.createGain();
+                osc1.connect(gain1);
+                gain1.connect(ctx.destination);
+                osc1.frequency.setValueAtTime(1318, ctx.currentTime);       // E6
+                osc1.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15);
+                gain1.gain.setValueAtTime(0.6, ctx.currentTime);
+                gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.4);
+                osc1.start(ctx.currentTime);
+                osc1.stop(ctx.currentTime + 1.4);
+
+                // Second tone — warm body (the resonant tail)
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.connect(gain2);
+                gain2.connect(ctx.destination);
+                osc2.frequency.setValueAtTime(659, ctx.currentTime);        // E5
+                gain2.gain.setValueAtTime(0.3, ctx.currentTime);
+                gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.8);
+                osc2.start(ctx.currentTime);
+                osc2.stop(ctx.currentTime + 1.8);
+            } catch (e) {
+                // Audio not supported — silently ignore
+            }
+        }
+
+        updateProgressBar();
+
+            if (currentTaskEstimatedTime > 0 && elapsedSeconds >= currentTaskEstimatedTime && !advancing) {
+                advancing = true;
+                clearInterval(timerInterval);
+                playDing();
+                if (autoMode) {
+                    await autoFinishTask();
+                } else {
+                    await finishAndAdvance();
                 }
             }
         }
@@ -241,6 +267,27 @@
 
         async function autoFinishTask() {
             await finishTask(true);
+        }
+
+        async function finishAndAdvance() {
+            try {
+                const response = await fetch('/task/finish/' + studentId, { method: 'POST' });
+                if (!response.ok) return;
+                const data = await response.json();
+
+                confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
+
+                const nextTask = getNextTask();
+                if (nextTask) {
+                    setTimeout(async function() {
+                        await startTask(nextTask.id, nextTask.estimated_time);
+                    }, 1000);
+                } else {
+                    setTimeout(function() { window.location.reload(); }, 1500);
+                }
+            } catch (error) {
+                window.location.reload();
+            }
         }
 
         function getNextTask() {
