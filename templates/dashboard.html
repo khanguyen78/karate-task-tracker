@@ -136,24 +136,7 @@
         
         let advancing = false;
 
-        async function updateTimer() {
-            elapsedSeconds++;
-            
-            const remainingSeconds = Math.max(0, currentTaskEstimatedTime - elapsedSeconds);
-            
-            const timerEl = document.getElementById('timer');
-            if (timerEl) {
-                if (remainingSeconds > 0) {
-                    timerEl.textContent = remainingSeconds + 's';
-                    timerEl.style.color = '';
-                } else {
-                    const overtimeSeconds = elapsedSeconds - currentTaskEstimatedTime;
-                    timerEl.textContent = '+' + overtimeSeconds + 's';
-                    timerEl.style.color = '#ff6b6b';
-                }
-            }
-            
-            function playDing() {
+        function playDing() {
             try {
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -184,7 +167,24 @@
             }
         }
 
-        updateProgressBar();
+        async function updateTimer() {
+            elapsedSeconds++;
+            
+            const remainingSeconds = Math.max(0, currentTaskEstimatedTime - elapsedSeconds);
+            
+            const timerEl = document.getElementById('timer');
+            if (timerEl) {
+                if (remainingSeconds > 0) {
+                    timerEl.textContent = remainingSeconds + 's';
+                    timerEl.style.color = '';
+                } else {
+                    const overtimeSeconds = elapsedSeconds - currentTaskEstimatedTime;
+                    timerEl.textContent = '+' + overtimeSeconds + 's';
+                    timerEl.style.color = '#ff6b6b';
+                }
+            }
+            
+            updateProgressBar();
 
             if (currentTaskEstimatedTime > 0 && elapsedSeconds >= currentTaskEstimatedTime && !advancing) {
                 advancing = true;
@@ -316,48 +316,26 @@
                 });
                 
                 if (response.ok) {
-                    const data = await response.json();
                     clearInterval(timerInterval);
-                    
+                    advancing = true;
+
                     confetti({
                         particleCount: 50,
                         spread: 60,
                         origin: { y: 0.7 }
                     });
-                    
-                    if (!isAutoMode) {
-                        const nextTask = getNextTask();
-                        
-                        if (nextTask) {
-                            const shouldContinue = confirm(
-                                '🎉 Great job!\n\n' +
-                                'Time: ' + data.time_display + '\n' +
-                                'Focus Score: ' + data.focus_score + '/1.0\n' +
-                                'Impact Score: ' + data.impact_score + '/10.0\n\n' +
-                                'Start next task: ' + nextTask.title + '?'
-                            );
-                            
-                            if (shouldContinue) {
-                                await startTask(nextTask.id, nextTask.estimated_time);
-                                return;
-                            }
-                        } else {
-                            alert(
-                                '🎉 Great job!\n\n' +
-                                'Time: ' + data.time_display + '\n' +
-                                'Focus Score: ' + data.focus_score + '/1.0\n' +
-                                'Impact Score: ' + data.impact_score + '/10.0\n\n' +
-                                '✅ All tasks completed!'
-                            );
-                        }
-                    }
-                    
+
                     if (isAutoMode) {
-                        setTimeout(function() {
-                            startNextAutoTask();
-                        }, 1000);
+                        setTimeout(function() { startNextAutoTask(); }, 1000);
                     } else {
-                        setTimeout(function() { window.location.reload(); }, 2000);
+                        const nextTask = getNextTask();
+                        if (nextTask) {
+                            setTimeout(async function() {
+                                await startTask(nextTask.id, nextTask.estimated_time);
+                            }, 1000);
+                        } else {
+                            setTimeout(function() { window.location.reload(); }, 1500);
+                        }
                     }
                 } else {
                     const error = await response.json();
