@@ -1,6 +1,6 @@
 # 🥋 Karate Task Tracker
 
-A web application designed specifically for autistic students at a karate school to track their training tasks with visual feedback, clear progress indicators, and motivational features.
+A web application designed specifically for students in my private class that I'm work with on on one.
 
 ## Features
 

@@ -11,6 +11,7 @@ body {
     min-height: 100vh;
     padding: 20px;
     color: #333;
+    font-size: 1.15rem;
 }
 
 .container {
@@ -26,13 +27,13 @@ body {
 }
 
 .header h1 {
-    font-size: 3rem;
+    font-size: 3.8rem;
     margin-bottom: 10px;
     text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
 }
 
 .subtitle {
-    font-size: 1.3rem;
+    font-size: 1.6rem;
     opacity: 0.95;
 }
 
@@ -42,7 +43,7 @@ body {
     color: white;
     padding: 10px 20px;
     border-radius: 25px;
-    font-size: 1.2rem;
+    font-size: 1.5rem;
     font-weight: bold;
     margin-top: 10px;
     box-shadow: 0 4px 6px rgba(0,0,0,0.2);
@@ -70,7 +71,7 @@ body {
     padding: 15px 30px;
     border: none;
     border-radius: 12px;
-    font-size: 1.1rem;
+    font-size: 1.25rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s ease;
@@ -125,13 +126,13 @@ body {
 
 .btn-large {
     padding: 20px 40px;
-    font-size: 1.3rem;
+    font-size: 1.5rem;
     width: 100%;
 }
 
 .btn-small {
     padding: 10px 20px;
-    font-size: 0.95rem;
+    font-size: 1.1rem;
     min-height: auto;
 }
 
@@ -151,7 +152,7 @@ body {
 
 .name-input {
     padding: 20px;
-    font-size: 1.3rem;
+    font-size: 1.5rem;
     border: 3px solid #e0e0e0;
     border-radius: 12px;
     transition: border-color 0.3s;
@@ -170,7 +171,7 @@ body {
 .label {
     font-weight: 600;
     margin-bottom: 15px;
-    font-size: 1.1rem;
+    font-size: 1.3rem;
     color: #666;
 }
 
@@ -218,7 +219,7 @@ body {
 
 .tasks-header h2 {
     color: white;
-    font-size: 2rem;
+    font-size: 2.4rem;
 }
 
 .task-header-buttons {
@@ -248,7 +249,7 @@ body {
 }
 
 .task-card h3 {
-    font-size: 1.4rem;
+    font-size: 1.7rem;
     margin-bottom: 12px;
     color: #333;
 }
@@ -263,7 +264,7 @@ body {
     color: rgba(255, 255, 255, 0.9);
     margin-bottom: 20px;
     line-height: 1.6;
-    font-size: 1.1rem;
+    font-size: 1.3rem;
 }
 
 .task-meta {
@@ -276,7 +277,7 @@ body {
 .time-badge, .difficulty-badge {
     padding: 6px 12px;
     border-radius: 20px;
-    font-size: 0.9rem;
+    font-size: 1.1rem;
     font-weight: 600;
 }
 
@@ -299,12 +300,12 @@ body {
 }
 
 .active-task-card h2 {
-    font-size: 1.5rem;
+    font-size: 1.8rem;
     margin-bottom: 15px;
 }
 
 .active-task-card .task-title {
-    font-size: 2rem;
+    font-size: 2.4rem;
     margin-bottom: 25px;
 }
 
@@ -314,7 +315,7 @@ body {
 }
 
 .timer {
-    font-size: 4rem;
+    font-size: 5rem;
     font-weight: bold;
     margin: 30px 0 10px 0;
     font-family: 'Courier New', monospace;
@@ -332,7 +333,7 @@ body {
 }
 
 .timer-progress {
-    font-size: 1.2rem;
+    font-size: 1.4rem;
     margin-bottom: 25px;
     color: rgba(255, 255, 255, 0.9);
     font-weight: 600;
@@ -376,14 +377,14 @@ body {
 }
 
 .stat-number {
-    font-size: 3rem;
+    font-size: 3.5rem;
     font-weight: bold;
     color: #667eea;
     margin-bottom: 10px;
 }
 
 .stat-label {
-    font-size: 1.1rem;
+    font-size: 1.3rem;
     color: #666;
     font-weight: 600;
 }
@@ -412,13 +413,13 @@ body {
 }
 
 .completion-header h3 {
-    font-size: 1.3rem;
+    font-size: 1.55rem;
     color: #333;
 }
 
 .completion-date {
     color: #999;
-    font-size: 0.9rem;
+    font-size: 1.05rem;
 }
 
 .completion-description {
@@ -477,7 +478,7 @@ body {
     border-radius: 20px;
     display: inline-block;
     font-weight: bold;
-    font-size: 0.95rem;
+    font-size: 1.1rem;
 }
 
 /* Empty State */
@@ -487,13 +488,13 @@ body {
 }
 
 .empty-state h2 {
-    font-size: 2rem;
+    font-size: 2.3rem;
     margin-bottom: 15px;
     color: #666;
 }
 
 .empty-state p {
-    font-size: 1.2rem;
+    font-size: 1.4rem;
     color: #999;
     margin-bottom: 30px;
 }
@@ -503,18 +504,18 @@ body {
     text-align: center;
     color: white;
     margin-top: 40px;
-    font-size: 1.1rem;
+    font-size: 1.3rem;
     opacity: 0.9;
 }
 
 /* Responsive Design */
 @media (max-width: 768px) {
     .header h1 {
-        font-size: 2rem;
+        font-size: 2.4rem;
     }
     
     .subtitle {
-        font-size: 1rem;
+        font-size: 1.2rem;
     }
     
     .tasks-grid {
@@ -526,11 +527,11 @@ body {
     }
     
     .timer {
-        font-size: 3rem;
+        font-size: 3.5rem;
     }
     
     .btn {
-        font-size: 1rem;
+        font-size: 1.15rem;
         padding: 12px 24px;
     }
 }
@@ -550,14 +551,14 @@ body {
 
 .form-group label {
     font-weight: 600;
-    font-size: 1.1rem;
+    font-size: 1.3rem;
     color: #333;
 }
 
 .form-input,
 .form-textarea {
     padding: 15px;
-    font-size: 1.1rem;
+    font-size: 1.25rem;
     border: 2px solid #e0e0e0;
     border-radius: 8px;
     font-family: inherit;
@@ -594,7 +595,7 @@ body {
     border: none;
     border-radius: 8px;
     padding: 8px 12px;
-    font-size: 1.2rem;
+    font-size: 1.4rem;
     cursor: pointer;
     transition: all 0.3s ease;
 }
