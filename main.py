@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request, Form, UploadFile, File, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from datetime import datetime, timedelta
@@ -326,6 +326,36 @@ async def upload_tasks(student_id: int, file: UploadFile = File(...)):
     
     logger.info(f"Student {student_id} CSV upload complete: {tasks_added} tasks added from '{file.filename}'")
     return {"success": True, "tasks_added": tasks_added}
+
+@app.get("/tasks/export/{student_id}")
+async def export_tasks(student_id: int):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    c.execute("SELECT name FROM students WHERE id = ?", (student_id,))
+    student = c.fetchone()
+    if not student:
+        conn.close()
+        raise HTTPException(404, "Student not found")
+
+    c.execute("SELECT title, description, estimated_time, difficulty_weight FROM tasks WHERE student_id = ? ORDER BY id", (student_id,))
+    rows = c.fetchall()
+    conn.close()
+
+    weight_to_label = {0.5: 'easy', 1.0: 'medium', 1.5: 'hard', 2.0: 'expert'}
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['task', 'description', 'estimated_time', 'difficulty'])
+    for row in rows:
+        writer.writerow([row[0], row[1] or '', row[2], weight_to_label.get(row[3], 'medium')])
+
+    filename = f"{student[0].replace(' ', '_')}_tasks.csv"
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 
 @app.post("/task/start/{student_id}/{task_id}")
 async def start_task(student_id: int, task_id: int):

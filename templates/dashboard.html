@@ -180,6 +180,7 @@
     <!-- Drawer -->
     <div class="menu-drawer" id="menuDrawer">
         <a href="/results/{{ student_id }}">📊 View Results</a>
+        <a href="/tasks/export/{{ student_id }}">⬇️ Download My CSV</a>
         <a href="/">🏠 Home</a>
         <div class="menu-divider"></div>
         <div class="sound-menu-wrap" onmouseenter="showFlyout()" onmouseleave="hideFlyout()">
@@ -200,7 +201,7 @@
         <div class="menu-divider"></div>
         <button class="menu-danger" onclick="closeMenu(); adminAuth(resetSession)">🔄 Reset Session</button>
         <button class="menu-danger" onclick="closeMenu(); adminAuth(clearSession)">🧹 Clear Session</button>
-        <button class="menu-danger" onclick="closeMenu(); adminAuth(clearAllUserData)">🗑️ Clear Data for User</button>
+        <button class="menu-danger" onclick="closeMenu(); adminAuth(clearAllUserData)">🗑️ Clear All Data for User</button>
     </div>
 
     <!-- Task picker modal -->
