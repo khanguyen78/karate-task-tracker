@@ -260,12 +260,6 @@ body {
     line-height: 1.5;
 }
 
-.task-description-active {
-    color: rgba(255, 255, 255, 0.9);
-    margin-bottom: 20px;
-    line-height: 1.6;
-    font-size: 1.3rem;
-}
 
 .task-meta {
     display: flex;
@@ -300,13 +294,20 @@ body {
 }
 
 .active-task-card h2 {
-    font-size: 1.8rem;
+    font-size: 2.2rem;
     margin-bottom: 15px;
 }
 
 .active-task-card .task-title {
-    font-size: 2.4rem;
+    font-size: 3.2rem;
     margin-bottom: 25px;
+}
+
+.task-description-active {
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 20px;
+    line-height: 1.6;
+    font-size: 1.7rem;
 }
 
 .task-active {
@@ -471,6 +472,28 @@ body {
 }
 
 .achievement-badge {
+    margin-top: 15px;
+    padding: 8px 16px;
+    background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+    color: #fff;
+    border-radius: 20px;
+    display: inline-block;
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+.incomplete-badge {
+    margin-top: 15px;
+    padding: 8px 16px;
+    background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%);
+    color: white;
+    border-radius: 20px;
+    display: inline-block;
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+.overtime-badge {
     margin-top: 15px;
     padding: 8px 16px;
     background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);

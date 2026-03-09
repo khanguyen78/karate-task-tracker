@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Karate Task Tracker</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/style.css?v=2">
     <style>
         .instructions-grid {
             display: grid;
@@ -198,8 +198,8 @@
             <div class="collapsible-body open" id="csv-section">
                 <ol class="steps">
                     <li>Open any spreadsheet app (Excel, Google Sheets, Numbers) or a plain text editor like Notepad.</li>
-                    <li>Add the header row exactly as: <strong>task, description, estimated_time</strong></li>
-                    <li>Fill in one task per row. The <strong>estimated_time</strong> column is in <strong>seconds</strong>. Description is optional — leave it blank but keep the comma.</li>
+                    <li>Add the header row exactly as: <strong>task, description, estimated_time, difficulty</strong></li>
+                    <li>Fill in one task per row. The <strong>estimated_time</strong> column is in <strong>seconds</strong>. Description is optional. <strong>difficulty</strong> accepts: <em>easy, medium, hard, expert</em> — leave blank to auto-assign based on time.</li>
                     <li>Export the file as <strong>.csv</strong>:
                         <ul class="sub-steps">
                             <li><strong>Excel:</strong> File → Save As → CSV</li>
@@ -212,12 +212,12 @@
 
                 <h3>📋 Format &amp; Example</h3>
                 <div class="csv-example">
-<span class="csv-header">task,description,estimated_time</span>
-<span class="csv-row">Front Kick,Practice front kick technique,600</span>
-<span class="csv-row">Roundhouse Kick,Focus on hip rotation,900</span>
-<span class="csv-row">Kata Heian Shodan,Full kata run-throughs,1200</span>
-<span class="csv-row">Sparring Drills,Partner sparring combos,1800</span>
-<span class="csv-row">Cool Down Stretches,,300</span>
+<span class="csv-header">task,description,estimated_time,difficulty</span>
+<span class="csv-row">Front Kick,Practice front kick technique,600,easy</span>
+<span class="csv-row">Roundhouse Kick,Focus on hip rotation,900,medium</span>
+<span class="csv-row">Kata Heian Shodan,Full kata run-throughs,1200,hard</span>
+<span class="csv-row">Sparring Drills,Partner sparring combos,1800,expert</span>
+<span class="csv-row">Cool Down Stretches,,300,</span>
                 </div>
                 <p class="note">⚠️ The header row must be included. If you skip the description, keep the comma: <code>Cool Down,,5</code></p>
                 <p class="note">💡 Each student's CSV is private — uploading only adds tasks to your own account, not anyone else's.</p>
@@ -284,15 +284,19 @@
                         <ul class="button-guide">
                             <li>
                                 <span class="btn-label">✏️ Edit</span>
-                                <span>Edit a task's title, description, or estimated time.</span>
+                                <span>Edit a task's title, description, estimated time, or difficulty.</span>
                             </li>
                             <li>
-                                <span class="btn-label warning">🗑️ Clear All Tasks</span>
-                                <span>Permanently deletes <strong>all your tasks</strong> and completion history. Other students are unaffected. Cannot be undone.</span>
+                                <span class="btn-label warning">🧹 Clear Session</span>
+                                <span>Clears only the currently active task session. Your task list and completion history are kept.</span>
                             </li>
                             <li>
                                 <span class="btn-label warning">🔄 Reset Session</span>
-                                <span>Deletes all your completion records and resets your streak, but keeps your task list intact.</span>
+                                <span>Cancels the active task session and reloads the page. Keeps your task list and history.</span>
+                            </li>
+                            <li>
+                                <span class="btn-label warning">🗑️ Clear All Data for User</span>
+                                <span>Permanently deletes the student account, all tasks, and all history. Cannot be undone.</span>
                             </li>
                         </ul>
 
@@ -300,11 +304,15 @@
                         <ul class="button-guide">
                             <li>
                                 <span class="btn-label">Focus Score</span>
-                                <span>How closely your actual time matched the estimated time. 1.0 is perfect; below 0.5 means significantly over or under.</span>
+                                <span>How closely your actual time matched the estimated time. 1.0 is perfect; finishing early or running significantly over both lower your score.</span>
                             </li>
                             <li>
                                 <span class="btn-label">Impact Score</span>
-                                <span>A combined score (0–10) based on task difficulty and your focus score. Higher is better.</span>
+                                <span>A combined score (0–10) based on task difficulty and your focus score. An Expert task done with perfect focus scores 10; an Easy task maxes at 2.5.</span>
+                            </li>
+                            <li>
+                                <span class="btn-label">Difficulty</span>
+                                <span>Set manually in your CSV or via the Edit form. Four levels: 🟢 <strong>Easy</strong> (weight 0.5), 🟡 <strong>Medium</strong> (weight 1.0), 🟠 <strong>Hard</strong> (weight 1.5), 🔴 <strong>Expert</strong> (weight 2.0). If left blank, difficulty is auto-assigned by estimated time: under 5 min → Easy, 5–15 min → Medium, 15–30 min → Hard, over 30 min → Expert.</span>
                             </li>
                         </ul>
                     </div>

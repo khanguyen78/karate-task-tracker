@@ -8,6 +8,210 @@
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 </head>
 <body>
+    <style>
+        .menu-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: white;
+            border: none;
+            border-radius: 12px;
+            width: 52px;
+            height: 52px;
+            font-size: 1.6rem;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s;
+        }
+        .menu-btn:hover { transform: scale(1.08); }
+
+        .menu-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 998;
+        }
+        .menu-overlay.open { display: block; }
+
+        .menu-drawer {
+            position: fixed;
+            top: 0;
+            right: -280px;
+            width: 260px;
+            height: 100vh;
+            background: white;
+            z-index: 999;
+            box-shadow: -4px 0 20px rgba(0,0,0,0.2);
+            display: flex;
+            flex-direction: column;
+            padding: 80px 20px 30px;
+            gap: 8px;
+            transition: right 0.28s ease;
+            border-radius: 20px 0 0 20px;
+            overflow-y: auto;
+        }
+        .menu-drawer.open { right: 0; }
+
+        .menu-drawer a,
+        .menu-drawer button {
+            width: 100%;
+            text-align: left;
+            padding: 11px 16px;
+            border-radius: 10px;
+            font-size: 1.05rem;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+            display: block;
+            transition: background 0.2s;
+        }
+        .menu-drawer a { background: #f0f0f0; color: #333; }
+        .menu-drawer a:hover { background: #e0e0e0; }
+        .menu-drawer .menu-danger {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        .menu-drawer .menu-danger:hover { opacity: 0.9; }
+        .menu-drawer .menu-neutral {
+            background: #f0f0f0;
+            color: #333;
+        }
+        .menu-drawer .menu-neutral:hover { background: #e0e0e0; }
+        .menu-sound-opt {
+            width: 100%;
+            text-align: left;
+            padding: 10px 14px;
+            border-radius: 8px;
+            border: 2px solid transparent;
+            background: #f8f8f8;
+            font-size: 1.05rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .menu-sound-opt:hover { background: #e8e8e8; }
+        .menu-sound-opt.active { border-color: #667eea; background: #f0f4ff; }
+
+        /* Sound flyout */
+        .sound-menu-wrap {
+            position: relative;
+        }
+        .sound-flyout {
+            display: none;
+            position: absolute;
+            left: 0;
+            top: 100%;
+            margin-top: 4px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+            padding: 8px;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 100%;
+            z-index: 1200;
+        }
+        .sound-menu-wrap:hover .sound-flyout {
+            display: flex;
+        }
+
+        /* Task picker modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1100;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal {
+            background: white;
+            border-radius: 16px;
+            padding: 28px;
+            width: 90%;
+            max-width: 420px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        .modal h3 { margin: 0 0 18px; font-size: 1.3rem; }
+        .modal-task-list { display: flex; flex-direction: column; gap: 10px; }
+        .modal-task-btn {
+            width: 100%;
+            text-align: left;
+            padding: 14px 16px;
+            border-radius: 10px;
+            border: 2px solid #e0e0e0;
+            background: #fafafa;
+            font-size: 1.05rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .modal-task-btn:hover { border-color: #667eea; background: #f0f4ff; }
+        .modal-task-btn.danger:hover { border-color: #f5576c; background: #fff0f2; }
+        .modal-cancel {
+            margin-top: 16px;
+            width: 100%;
+            padding: 12px;
+            border-radius: 10px;
+            border: none;
+            background: #e0e0e0;
+            font-size: 1.05rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .modal-cancel:hover { background: #d0d0d0; }
+    </style>
+
+    <!-- Hamburger button -->
+    <button class="menu-btn" onclick="toggleMenu()" id="menuBtn">☰</button>
+
+    <!-- Click-outside overlay -->
+    <div class="menu-overlay" id="menuOverlay" onclick="closeMenu()"></div>
+
+    <!-- Drawer -->
+    <div class="menu-drawer" id="menuDrawer">
+        <a href="/results/{{ student_id }}">📊 View Results</a>
+        <a href="/">🏠 Home</a>
+        <div class="menu-divider"></div>
+        <div class="sound-menu-wrap" onmouseenter="showFlyout()" onmouseleave="hideFlyout()">
+            <button class="menu-neutral" id="soundMenuBtn"><span id="soundLabel">🔔 Sound: Ding</span> ▸</button>
+            <div class="sound-flyout" id="soundSubmenu">
+                <button class="menu-sound-opt" id="sndNone"  onclick="setSound('none')">🔕 No Sound</button>
+                <button class="menu-sound-opt" id="sndDing"  onclick="setSound('ding')">🔔 Ding</button>
+                <button class="menu-sound-opt" id="sndChime" onclick="setSound('chime')">🎵 Chime</button>
+                <button class="menu-sound-opt" id="sndBell"  onclick="setSound('bell')">🔔 Bell</button>
+            </div>
+        </div>
+        <div class="menu-divider"></div>
+        <button class="menu-neutral" onclick="closeMenu(); pauseTask()">⏸️ Pause</button>
+        <button class="menu-neutral" onclick="closeMenu(); cancelTask()">❌ Cancel Task</button>
+        <button class="menu-neutral" onclick="closeMenu(); adminAuth(showUploadForm)">➕ Add a Task</button>
+        <button class="menu-neutral" onclick="closeMenu(); adminAuth(openModifyPicker)">✏️ Modify a Task</button>
+        <button class="menu-neutral" onclick="closeMenu(); adminAuth(openRemovePicker)">🗑️ Remove a Task</button>
+        <div class="menu-divider"></div>
+        <button class="menu-danger" onclick="closeMenu(); adminAuth(resetSession)">🔄 Reset Session</button>
+        <button class="menu-danger" onclick="closeMenu(); adminAuth(clearSession)">🧹 Clear Session</button>
+        <button class="menu-danger" onclick="closeMenu(); adminAuth(clearAllUserData)">🗑️ Clear Data for User</button>
+    </div>
+
+    <!-- Task picker modal -->
+    <div class="modal-overlay" id="taskPickerModal">
+        <div class="modal">
+            <h3 id="taskPickerTitle">Select a Task</h3>
+            <div class="modal-task-list" id="taskPickerList"></div>
+            <button class="modal-cancel" onclick="closeTaskPicker()">Cancel</button>
+        </div>
+    </div>
+
     <div class="container">
         <div class="header">
             <h1>🥋 {{ student_name }}'s Tasks</h1>
@@ -17,14 +221,11 @@
         </div>
 
         <div class="nav-buttons">
-            <a href="/results/{{ student_id }}" class="btn btn-secondary">📊 View Results</a>
-            <button onclick="resetSession()" class="btn btn-warning">🔄 Reset Session</button>
             {% if tasks and not active_session %}
             <button onclick="startAutoMode()" class="btn btn-primary btn-large" id="autoModeBtn">
                 ▶️ Begin All Tasks
             </button>
             {% endif %}
-            <a href="/" class="btn btn-secondary">🏠 Home</a>
         </div>
 
         {% if not tasks %}
@@ -61,14 +262,7 @@
         </div>
         {% endif %}
 
-        <div class="tasks-header">
-            <h2>Available Tasks</h2>
-            <div class="task-header-buttons">
-                <button onclick="clearAllTasks()" class="btn btn-warning btn-small">
-                    🗑️ Clear All Tasks
-                </button>
-            </div>
-        </div>
+
 
         <div id="uploadFormCard" class="card" style="display: none;">
             <h3>Upload More Tasks</h3>
@@ -133,75 +327,114 @@
         {% if active_session %}
         elapsedSeconds = {{ active_session.elapsed }};
         currentTaskEstimatedTime = {{ active_session.estimated_time }};
-        
+        timerInterval = setInterval(updateTimer, 1000);
+        updateTimer();
+        window.scrollTo({top: 0, behavior: 'smooth'});
+        {% endif %}
+
         let advancing = false;
 
+        let currentSound = localStorage.getItem('karateSound') || 'ding';
+
+        function toggleSoundMenu() {} // no-op, now handled by CSS hover
+
+        function setSound(sound) {
+            currentSound = sound;
+            localStorage.setItem('karateSound', sound);
+            updateSoundUI();
+            playDing();
+        }
+
+        function updateSoundUI() {
+            const labels = { none: '🔕 Sound: Off', ding: '🔔 Sound: Ding', chime: '🎵 Sound: Chime', bell: '🔔 Sound: Bell' };
+            document.getElementById('soundLabel').textContent = labels[currentSound] || '🔔 Sound';
+            ['none','ding','chime','bell'].forEach(function(s) {
+                const el = document.getElementById('snd' + s.charAt(0).toUpperCase() + s.slice(1));
+                if (el) el.classList.toggle('active', s === currentSound);
+            });
+        }
+
+        // Init sound UI on page load
+        updateSoundUI();
+
         function playDing() {
+            if (currentSound === 'none') return;
             try {
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                if (currentSound === 'ding') {
+                    // iPhone-style ding: bright attack, warm decay
+                    const osc1 = ctx.createOscillator(), g1 = ctx.createGain();
+                    osc1.connect(g1); g1.connect(ctx.destination);
+                    osc1.frequency.setValueAtTime(1318, ctx.currentTime);
+                    osc1.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15);
+                    g1.gain.setValueAtTime(0.6, ctx.currentTime);
+                    g1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.4);
+                    osc1.start(); osc1.stop(ctx.currentTime + 1.4);
 
-                // First tone — high partial (the "ding" attack)
-                const osc1 = ctx.createOscillator();
-                const gain1 = ctx.createGain();
-                osc1.connect(gain1);
-                gain1.connect(ctx.destination);
-                osc1.frequency.setValueAtTime(1318, ctx.currentTime);       // E6
-                osc1.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15);
-                gain1.gain.setValueAtTime(0.6, ctx.currentTime);
-                gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.4);
-                osc1.start(ctx.currentTime);
-                osc1.stop(ctx.currentTime + 1.4);
+                    const osc2 = ctx.createOscillator(), g2 = ctx.createGain();
+                    osc2.connect(g2); g2.connect(ctx.destination);
+                    osc2.frequency.setValueAtTime(659, ctx.currentTime);
+                    g2.gain.setValueAtTime(0.3, ctx.currentTime);
+                    g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.8);
+                    osc2.start(); osc2.stop(ctx.currentTime + 1.8);
 
-                // Second tone — warm body (the resonant tail)
-                const osc2 = ctx.createOscillator();
-                const gain2 = ctx.createGain();
-                osc2.connect(gain2);
-                gain2.connect(ctx.destination);
-                osc2.frequency.setValueAtTime(659, ctx.currentTime);        // E5
-                gain2.gain.setValueAtTime(0.3, ctx.currentTime);
-                gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.8);
-                osc2.start(ctx.currentTime);
-                osc2.stop(ctx.currentTime + 1.8);
-            } catch (e) {
-                // Audio not supported — silently ignore
-            }
+                } else if (currentSound === 'chime') {
+                    // Three ascending tones, like a doorbell chime
+                    [[523, 0.0], [659, 0.25], [784, 0.5]].forEach(function(note) {
+                        const osc = ctx.createOscillator(), g = ctx.createGain();
+                        osc.connect(g); g.connect(ctx.destination);
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(note[0], ctx.currentTime + note[1]);
+                        g.gain.setValueAtTime(0.0, ctx.currentTime + note[1]);
+                        g.gain.linearRampToValueAtTime(0.5, ctx.currentTime + note[1] + 0.02);
+                        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + note[1] + 1.0);
+                        osc.start(ctx.currentTime + note[1]);
+                        osc.stop(ctx.currentTime + note[1] + 1.0);
+                    });
+
+                } else if (currentSound === 'bell') {
+                    // Deep resonant bell with harmonics
+                    const osc1 = ctx.createOscillator(), g1 = ctx.createGain();
+                    osc1.connect(g1); g1.connect(ctx.destination);
+                    osc1.type = 'sine';
+                    osc1.frequency.setValueAtTime(440, ctx.currentTime);
+                    g1.gain.setValueAtTime(0.7, ctx.currentTime);
+                    g1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 2.5);
+                    osc1.start(); osc1.stop(ctx.currentTime + 2.5);
+
+                    const osc2 = ctx.createOscillator(), g2 = ctx.createGain();
+                    osc2.connect(g2); g2.connect(ctx.destination);
+                    osc2.type = 'sine';
+                    osc2.frequency.setValueAtTime(1174, ctx.currentTime);
+                    g2.gain.setValueAtTime(0.3, ctx.currentTime);
+                    g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2);
+                    osc2.start(); osc2.stop(ctx.currentTime + 1.2);
+                }
+            } catch (e) { /* audio not supported */ }
         }
 
         async function updateTimer() {
             elapsedSeconds++;
-            
-            const remainingSeconds = Math.max(0, currentTaskEstimatedTime - elapsedSeconds);
-            
+
             const timerEl = document.getElementById('timer');
             if (timerEl) {
-                if (remainingSeconds > 0) {
-                    timerEl.textContent = remainingSeconds + 's';
+                if (elapsedSeconds <= currentTaskEstimatedTime) {
+                    const remaining = currentTaskEstimatedTime - elapsedSeconds;
+                    timerEl.textContent = remaining + 's';
                     timerEl.style.color = '';
                 } else {
-                    const overtimeSeconds = elapsedSeconds - currentTaskEstimatedTime;
-                    timerEl.textContent = '+' + overtimeSeconds + 's';
+                    const overtime = elapsedSeconds - currentTaskEstimatedTime;
+                    timerEl.textContent = '+' + overtime + 's';
                     timerEl.style.color = '#ff6b6b';
+                    if (overtime === 1) {
+                        playDing();
+                    }
                 }
             }
-            
-            updateProgressBar();
 
-            if (currentTaskEstimatedTime > 0 && elapsedSeconds >= currentTaskEstimatedTime && !advancing) {
-                advancing = true;
-                clearInterval(timerInterval);
-                playDing();
-                if (autoMode) {
-                    await autoFinishTask();
-                } else {
-                    await finishAndAdvance();
-                }
-            }
+            updateProgressBar();
         }
         
-        timerInterval = setInterval(updateTimer, 1000);
-        updateTimer();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        {% endif %}
 
         function editTask(taskId) {
             window.location.href = '/task/' + taskId + '/edit';
@@ -303,28 +536,19 @@
 
         async function finishTask(isAutoMode) {
             if (typeof isAutoMode === 'undefined') isAutoMode = autoMode;
-            
+
             playDing();
 
             const btn = document.getElementById('finishBtn');
             btn.disabled = true;
             btn.textContent = 'Saving...';
-            
+
             try {
-                const response = await fetch('/task/finish/' + studentId, {
-                    method: 'POST'
-                });
-                
+                const response = await fetch('/task/finish/' + studentId, { method: 'POST' });
+
                 if (response.ok) {
                     clearInterval(timerInterval);
-                    advancing = true;
-
-                    confetti({
-                        particleCount: 50,
-                        spread: 60,
-                        origin: { y: 0.7 }
-                    });
-
+                    confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
                     if (isAutoMode) {
                         setTimeout(function() { startNextAutoTask(); }, 1000);
                     } else {
@@ -382,6 +606,20 @@
             }
         }
 
+        let adminUnlocked = false;
+
+        function adminAuth(action) {
+            if (adminUnlocked) { action(); return; }
+            const pw = prompt('🔒 Enter admin password:');
+            if (pw === null) return; // cancelled
+            if (pw === 'admin') {
+                adminUnlocked = true;
+                action();
+            } else {
+                alert('❌ Incorrect password.');
+            }
+        }
+
         function showUploadForm() {
             document.getElementById('uploadFormCard').style.display = 'block';
         }
@@ -393,15 +631,15 @@
         function updateProgressBar() {
             const progressEl = document.getElementById('timerProgress');
             if (progressEl && currentTaskEstimatedTime > 0) {
-                const percentage = Math.min((elapsedSeconds / currentTaskEstimatedTime) * 100, 100);
-                const remainingSeconds = Math.max(0, currentTaskEstimatedTime - elapsedSeconds);
-                
-                if (remainingSeconds > 0) {
-                    progressEl.textContent = Math.round(percentage) + '% complete (' + remainingSeconds + 's remaining)';
+                if (elapsedSeconds <= currentTaskEstimatedTime) {
+                    const remaining = currentTaskEstimatedTime - elapsedSeconds;
+                    const percentage = Math.round((elapsedSeconds / currentTaskEstimatedTime) * 100);
+                    progressEl.textContent = percentage + '% complete (' + remaining + 's remaining)';
                     progressEl.style.color = '';
+                    progressEl.style.fontWeight = '';
                 } else {
-                    const overtimeSeconds = elapsedSeconds - currentTaskEstimatedTime;
-                    progressEl.textContent = 'Time\'s up! (+' + overtimeSeconds + 's overtime)';
+                    const overtime = elapsedSeconds - currentTaskEstimatedTime;
+                    progressEl.textContent = 'Estimated time passed — +' + overtime + 's over · click Finished when done';
                     progressEl.style.color = '#ff6b6b';
                     progressEl.style.fontWeight = 'bold';
                 }
@@ -421,44 +659,31 @@
         }
 
         async function cancelTask() {
-            if (!confirm('Cancel this task? Your progress will not be saved.')) {
-                return;
-            }
-            
+            clearInterval(timerInterval);
             try {
-                const response = await fetch('/task/cancel/' + studentId, {
-                    method: 'POST'
-                });
-                
+                const response = await fetch('/task/abandon/' + studentId, { method: 'POST' });
                 if (response.ok) {
-                    alert('Task cancelled');
-                    window.location.reload();
+                    const nextTask = getNextTask();
+                    if (nextTask) {
+                        await startTask(nextTask.id, nextTask.estimated_time);
+                    } else {
+                        window.location.reload();
+                    }
                 } else {
                     const error = await response.json();
                     alert(error.detail || 'Error cancelling task');
+                    timerInterval = setInterval(updateTimer, 1000);
                 }
             } catch (error) {
                 alert('Error cancelling task: ' + error.message);
+                timerInterval = setInterval(updateTimer, 1000);
             }
         }
 
         async function resetSession() {
-            if (!confirm('⚠️ WARNING: This will delete ALL your completed tasks and reset your progress!\n\nAre you absolutely sure?')) {
-                return;
-            }
-            
-            if (!confirm('This cannot be undone. Delete everything?')) {
-                return;
-            }
-            
             try {
-                const response = await fetch('/student/' + studentId + '/reset', {
-                    method: 'POST'
-                });
-                
+                const response = await fetch('/student/' + studentId + '/reset', { method: 'POST' });
                 if (response.ok) {
-                    const data = await response.json();
-                    alert('✅ Session reset!\n' + data.completions_deleted + ' completed tasks deleted.');
                     window.location.reload();
                 } else {
                     const error = await response.json();
@@ -469,35 +694,130 @@
             }
         }
 
-        async function clearAllTasks() {
-            if (!confirm('⚠️ WARNING: This will delete ALL your tasks and completion history!\n\nThis cannot be undone. Are you absolutely sure?')) {
-                return;
+        async function clearSession() {
+            try {
+                const response = await fetch('/student/' + studentId + '/reset', { method: 'POST' });
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Error clearing session');
+                }
+            } catch (error) {
+                alert('Error clearing session: ' + error.message);
             }
-            
-            if (!confirm('This will clear your tasks. You will need to upload a new CSV. Continue?')) {
-                return;
-            }
-            
+        }
+        async function clearAllUserData() {
             try {
                 const formData = new FormData();
                 formData.append('student_id', studentId);
-
-                const response = await fetch('/tasks/clear', {
-                    method: 'POST',
-                    body: formData
-                });
-                
+                const response = await fetch('/tasks/clear', { method: 'POST', body: formData });
                 if (response.ok) {
-                    const data = await response.json();
-                    alert('✅ Your tasks have been cleared!\n\n' + data.tasks_deleted + ' tasks deleted\n' + data.completions_deleted + ' completions deleted');
                     window.location.href = '/';
                 } else {
                     const error = await response.json();
-                    alert(error.detail || 'Error clearing tasks');
+                    alert(error.detail || 'Error clearing user data');
                 }
             } catch (error) {
-                alert('Error clearing tasks: ' + error.message);
+                alert('Error clearing user data: ' + error.message);
             }
+        }
+
+        let isPaused = false;
+
+        function pauseTask() {
+            closeMenu();
+            const btn = document.getElementById('finishBtn');
+            if (!btn) return;
+            if (!isPaused) {
+                // Pause: stop the timer, change button to Paused
+                clearInterval(timerInterval);
+                timerInterval = null;
+                isPaused = true;
+                btn.textContent = '▶️ Paused — tap to resume';
+                btn.onclick = pauseTask;
+            } else {
+                // Resume: restart the timer, restore button
+                isPaused = false;
+                btn.textContent = '✅ Finished!';
+                btn.onclick = function() { finishTask(); };
+                timerInterval = setInterval(updateTimer, 1000);
+            }
+        }
+
+        function openModifyPicker() {
+            if (!allTasks.length) { alert('No tasks to modify.'); return; }
+            document.getElementById('taskPickerTitle').textContent = '✏️ Which task to modify?';
+            const list = document.getElementById('taskPickerList');
+            list.innerHTML = '';
+            allTasks.forEach(function(task) {
+                const btn = document.createElement('button');
+                btn.className = 'modal-task-btn';
+                btn.textContent = task.title;
+                btn.onclick = function() {
+                    closeTaskPicker();
+                    window.location.href = '/task/' + task.id + '/edit?student_id={{ student_id }}';
+                };
+                list.appendChild(btn);
+            });
+            document.getElementById('taskPickerModal').classList.add('open');
+        }
+
+        function openRemovePicker() {
+            if (!allTasks.length) { alert('No tasks to remove.'); return; }
+            document.getElementById('taskPickerTitle').textContent = '🗑️ Which task to remove?';
+            const list = document.getElementById('taskPickerList');
+            list.innerHTML = '';
+            allTasks.forEach(function(task) {
+                const btn = document.createElement('button');
+                btn.className = 'modal-task-btn danger';
+                btn.textContent = task.title;
+                btn.onclick = async function() {
+                    if (!confirm('Remove "' + task.title + '"? This cannot be undone.')) return;
+                    closeTaskPicker();
+                    try {
+                        const response = await fetch('/task/' + task.id + '?student_id={{ student_id }}', { method: 'DELETE' });
+                        if (response.ok) {
+                            window.location.reload();
+                        } else {
+                            const error = await response.json();
+                            alert(error.detail || 'Error removing task');
+                        }
+                    } catch (e) {
+                        alert('Error removing task: ' + e.message);
+                    }
+                };
+                list.appendChild(btn);
+            });
+            document.getElementById('taskPickerModal').classList.add('open');
+        }
+
+        function closeTaskPicker() {
+            document.getElementById('taskPickerModal').classList.remove('open');
+        }
+
+        function showFlyout() {
+            document.getElementById('soundSubmenu').style.display = 'flex';
+        }
+
+        function hideFlyout() {
+            document.getElementById('soundSubmenu').style.display = 'none';
+        }
+
+        function toggleMenu() {
+            const drawer = document.getElementById('menuDrawer');
+            const overlay = document.getElementById('menuOverlay');
+            const btn = document.getElementById('menuBtn');
+            const isOpen = drawer.classList.contains('open');
+            drawer.classList.toggle('open', !isOpen);
+            overlay.classList.toggle('open', !isOpen);
+            btn.textContent = isOpen ? '☰' : '✕';
+        }
+
+        function closeMenu() {
+            document.getElementById('menuDrawer').classList.remove('open');
+            document.getElementById('menuOverlay').classList.remove('open');
+            document.getElementById('menuBtn').textContent = '☰';
         }
     </script>
 </body>

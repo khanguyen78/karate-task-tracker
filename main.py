@@ -96,8 +96,14 @@ def init_db():
                   focus_score REAL,
                   impact_score REAL,
                   completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                  completed INTEGER DEFAULT 1,
                   FOREIGN KEY (student_id) REFERENCES students(id),
                   FOREIGN KEY (task_id) REFERENCES tasks(id))''')
+    # Migrate: add completed column if missing
+    try:
+        c.execute("ALTER TABLE task_completions ADD COLUMN completed INTEGER DEFAULT 1")
+    except Exception:
+        pass
     
     c.execute('''CREATE TABLE IF NOT EXISTS active_sessions
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -140,6 +146,20 @@ def calculate_difficulty_weight(estimated_time: int) -> float:
         return 1.5
     else:
         return 2.0
+
+DIFFICULTY_MAP = {
+    'easy': 0.5, 'medium': 1.0, 'hard': 1.5, 'expert': 2.0,
+    '0.5': 0.5, '1.0': 1.0, '1.5': 1.5, '2.0': 2.0,
+}
+
+def parse_difficulty(value: str, estimated_time: int) -> float:
+    """Parse difficulty from CSV field, fall back to time-based if blank/invalid."""
+    if not value:
+        return calculate_difficulty_weight(estimated_time)
+    normalized = value.strip().lower()
+    if normalized in DIFFICULTY_MAP:
+        return DIFFICULTY_MAP[normalized]
+    return calculate_difficulty_weight(estimated_time)
 
 def calculate_focus_score(estimated: int, actual: int) -> float:
     if estimated == 0:
@@ -295,7 +315,8 @@ async def upload_tasks(student_id: int, file: UploadFile = File(...)):
             estimated_time = 900  # default 15 minutes in seconds
         
         if title:
-            difficulty = calculate_difficulty_weight(estimated_time)
+            diff_str = clean_csv_value(row.get('difficulty', ''))
+            difficulty = parse_difficulty(diff_str, estimated_time)
             c.execute('''INSERT INTO tasks (student_id, title, description, estimated_time, difficulty_weight)
                          VALUES (?, ?, ?, ?, ?)''', (student_id, title, description, estimated_time, difficulty))
             tasks_added += 1
@@ -394,6 +415,40 @@ async def cancel_task(student_id: int):
         logger.warning(f"Student {student_id} tried to cancel but had no active task")
         raise HTTPException(400, "No active task to cancel")
 
+@app.post("/task/abandon/{student_id}")
+async def abandon_task(student_id: int):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    c.execute('''SELECT a.id, a.task_id, a.start_time, t.estimated_time, t.difficulty_weight
+                 FROM active_sessions a
+                 JOIN tasks t ON a.task_id = t.id
+                 WHERE a.student_id = ?''', (student_id,))
+    session = c.fetchone()
+    if not session:
+        conn.close()
+        raise HTTPException(400, "No active task found")
+
+    session_id, task_id, start_time, estimated_time, difficulty = session
+    start = datetime.fromisoformat(start_time)
+    end = datetime.now()
+    actual_time = int((end - start).total_seconds())
+
+    focus_score = calculate_focus_score(estimated_time, actual_time)
+    impact_score = calculate_impact_score(difficulty, focus_score)
+
+    c.execute('''INSERT INTO task_completions
+                 (student_id, task_id, start_time, end_time, actual_time, focus_score, impact_score, completed)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, 0)''',
+              (student_id, task_id, start_time, end.isoformat(), actual_time, focus_score, impact_score))
+
+    c.execute("DELETE FROM active_sessions WHERE id = ?", (session_id,))
+    conn.commit()
+    conn.close()
+
+    logger.info(f"Student {student_id} abandoned task {task_id}: actual={actual_time}s (incomplete)")
+    return {"success": True, "actual_time": actual_time}
+
 @app.get("/results/{student_id}", response_class=HTMLResponse)
 async def results(request: Request, student_id: int):
     conn = sqlite3.connect(DB_PATH)
@@ -406,7 +461,8 @@ async def results(request: Request, student_id: int):
         raise HTTPException(404, "Student not found")
     
     c.execute('''SELECT tc.id, t.title, t.description, t.estimated_time, tc.actual_time,
-                        tc.focus_score, tc.impact_score, tc.completed_at
+                        tc.focus_score, tc.impact_score, tc.completed_at,
+                        COALESCE(tc.completed, 1)
                  FROM task_completions tc
                  JOIN tasks t ON tc.task_id = t.id
                  WHERE tc.student_id = ?
@@ -430,7 +486,8 @@ async def results(request: Request, student_id: int):
             "actual_time": actual_seconds,
             "focus_score": round(row[5], 2),
             "impact_score": round(row[6], 2),
-            "completed_at": row[7]
+            "completed_at": row[7],
+            "completed": row[8]
         })
     
     count = len(completions)
@@ -455,26 +512,20 @@ async def results(request: Request, student_id: int):
 async def reset_student_data(student_id: int):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    
+
     c.execute("SELECT id FROM students WHERE id = ?", (student_id,))
     if not c.fetchone():
         conn.close()
         raise HTTPException(404, "Student not found")
-    
-    c.execute("DELETE FROM task_completions WHERE student_id = ?", (student_id,))
-    completions_deleted = c.rowcount
-    
+
     c.execute("DELETE FROM active_sessions WHERE student_id = ?", (student_id,))
-    
+    deleted = c.rowcount
+
     conn.commit()
     conn.close()
-    
-    logger.info(f"Student {student_id} session data reset: {completions_deleted} completions deleted")
-    return {
-        "success": True,
-        "completions_deleted": completions_deleted,
-        "message": "All session data has been reset"
-    }
+
+    logger.info(f"Student {student_id} active session reset (deleted={deleted})")
+    return {"success": True, "message": "Active session cleared"}
 
 @app.post("/tasks/clear")
 async def clear_all_tasks(student_id: int = Form(...)):
@@ -530,14 +581,16 @@ async def clear_student_tasks(student_id: int):
 async def edit_task_form(request: Request, task_id: int, student_id: int):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    
-    c.execute("SELECT id, title, description, estimated_time FROM tasks WHERE id = ? AND student_id = ?", (task_id, student_id))
+
+    c.execute("SELECT id, title, description, estimated_time, difficulty_weight FROM tasks WHERE id = ? AND student_id = ?", (task_id, student_id))
     task = c.fetchone()
     conn.close()
-    
+
     if not task:
         raise HTTPException(404, "Task not found")
-    
+
+    difficulty_label = {0.5: 'easy', 1.0: 'medium', 1.5: 'hard', 2.0: 'expert'}.get(task[4], 'medium')
+
     return templates.TemplateResponse("edit_task.html", {
         "request": request,
         "student_id": student_id,
@@ -545,7 +598,8 @@ async def edit_task_form(request: Request, task_id: int, student_id: int):
             "id": task[0],
             "title": task[1],
             "description": task[2],
-            "estimated_time": task[3]
+            "estimated_time": task[3],
+            "difficulty": difficulty_label
         }
     })
 
@@ -555,31 +609,32 @@ async def update_task(
     student_id: int = Form(...),
     title: str = Form(...),
     description: str = Form(""),
-    estimated_time: int = Form(...)
+    estimated_time: int = Form(...),
+    difficulty: str = Form("")
 ):
     title = clean_csv_value(title)
     description = clean_csv_value(description)
-    
+
     if not title or len(title) < 2:
         raise HTTPException(400, "Title must be at least 2 characters")
-    
+
     if estimated_time < 1:
         raise HTTPException(400, "Estimated time must be at least 1 second")
-    
-    difficulty = calculate_difficulty_weight(estimated_time)
-    
+
+    difficulty_weight = parse_difficulty(difficulty, estimated_time)
+
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    
-    c.execute('''UPDATE tasks 
+
+    c.execute('''UPDATE tasks
                  SET title = ?, description = ?, estimated_time = ?, difficulty_weight = ?
                  WHERE id = ? AND student_id = ?''',
-              (title, description, estimated_time, difficulty, task_id, student_id))
-    
+              (title, description, estimated_time, difficulty_weight, task_id, student_id))
+
     conn.commit()
     conn.close()
-    
-    logger.info(f"Student {student_id} updated task {task_id}: title='{title}', estimated_time={estimated_time}s")
+
+    logger.info(f"Student {student_id} updated task {task_id}: title='{title}', estimated_time={estimated_time}s, difficulty={difficulty_weight}")
     return {"success": True, "message": "Task updated successfully"}
 
 @app.delete("/task/{task_id}")

@@ -38,7 +38,7 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="estimated_time">Estimated Time (minutes) *</label>
+                    <label for="estimated_time">Estimated Time (seconds) *</label>
                     <input 
                         type="number" 
                         id="estimated_time" 
@@ -47,8 +47,18 @@
                         required 
                         class="form-input"
                         min="1"
-                        max="999"
+                        max="99999"
                     >
+                </div>
+
+                <div class="form-group">
+                    <label for="difficulty">Difficulty</label>
+                    <select id="difficulty" name="difficulty" class="form-input">
+                        <option value="easy"   {% if task.difficulty == 'easy'   %}selected{% endif %}>🟢 Easy</option>
+                        <option value="medium" {% if task.difficulty == 'medium' %}selected{% endif %}>🟡 Medium</option>
+                        <option value="hard"   {% if task.difficulty == 'hard'   %}selected{% endif %}>🟠 Hard</option>
+                        <option value="expert" {% if task.difficulty == 'expert' %}selected{% endif %}>🔴 Expert</option>
+                    </select>
                 </div>
 
                 <div class="button-group">

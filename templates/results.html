@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Results</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/style.css?v=2">
 </head>
 <body>
     <div class="container">
@@ -69,7 +69,7 @@
                         
                         <div class="completion-stat">
                             <span class="label">Expected:</span>
-                            <span class="value">~{{ completion.estimated_time }} min</span>
+                            <span class="value">~{{ completion.estimated_time }} sec</span>
                         </div>
                         
                         <div class="completion-stat">
@@ -93,8 +93,14 @@
                         </div>
                     </div>
                     
-                    {% if completion.actual_time <= completion.estimated_time * 60 %}
+                    {% if completion.actual_time <= completion.estimated_time and completion.completed %}
                     <div class="achievement-badge">🌟 Finished Early!</div>
+                    {% endif %}
+                    {% if completion.completed and completion.actual_time > completion.estimated_time %}
+                    <div class="overtime-badge">⏱️ Time to Complete</div>
+                    {% endif %}
+                    {% if not completion.completed %}
+                    <div class="incomplete-badge">❌ Incomplete</div>
                     {% endif %}
                 </div>
                 {% endfor %}
