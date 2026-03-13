@@ -160,20 +160,6 @@
         <div class="card">
             <h2>Welcome! What's your name?</h2>
 
-            {% if students %}
-            <div class="existing-students">
-                <p class="label">Click your name:</p>
-                <div class="student-buttons">
-                    {% for student in students %}
-                    <a href="/student/{{ student.id }}" class="btn btn-secondary">
-                        {{ student.name }}
-                    </a>
-                    {% endfor %}
-                </div>
-            </div>
-            <div class="divider"><span>OR</span></div>
-            {% endif %}
-
             <form method="post" action="/student/create" class="name-form">
                 <input
                     type="text"
@@ -182,6 +168,7 @@
                     required
                     class="name-input"
                     autocomplete="off"
+                    autofocus
                 >
                 <button type="submit" class="btn btn-primary btn-large">
                     Start Training! 🚀
