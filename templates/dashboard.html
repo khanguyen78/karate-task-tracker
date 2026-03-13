@@ -249,12 +249,14 @@
             {% if active_session.task_description %}
             <p class="task-description-active">{{ active_session.task_description }}</p>
             {% endif %}
-            
+
+            {% if active_session.estimated_time > 0 %}
             <div class="timer" id="timer">00:00</div>
             <div class="timer-progress" id="timerProgress"></div>
-            
-            <button 
-                class="btn btn-success btn-large" 
+            {% endif %}
+
+            <button
+                class="btn btn-success btn-large"
                 onclick="finishTask()"
                 id="finishBtn"
             >
@@ -288,7 +290,7 @@
                 <p class="task-description">{{ task.description }}</p>
                 {% endif %}
                 <div class="task-meta">
-                    <span class="time-badge">⏱️ ~{{ task.estimated_time }} sec</span>
+                    <span class="time-badge">{% if task.estimated_time > 0 %}⏱️ ~{{ task.estimated_time }} sec{% else %}🔓 No Countdown{% endif %}</span>
                     <span class="difficulty-badge">
                         {% if task.difficulty_weight <= 0.5 %}🟢 Easy
                         {% elif task.difficulty_weight <= 1.0 %}🟡 Medium
@@ -328,8 +330,10 @@
         {% if active_session %}
         elapsedSeconds = {{ active_session.elapsed }};
         currentTaskEstimatedTime = {{ active_session.estimated_time }};
+        {% if active_session.estimated_time > 0 %}
         timerInterval = setInterval(updateTimer, 1000);
         updateTimer();
+        {% endif %}
         window.scrollTo({top: 0, behavior: 'smooth'});
         {% endif %}
 

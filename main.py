@@ -308,9 +308,9 @@ async def upload_tasks(student_id: int, file: UploadFile = File(...)):
         title = clean_csv_value(row.get('task', ''))
         description = clean_csv_value(row.get('description', ''))
         
-        time_str = clean_csv_value(row.get('estimated_time', '0'))
+        time_str = clean_csv_value(row.get('estimated_time', ''))
         try:
-            estimated_time = int(''.join(filter(str.isdigit, time_str)))
+            estimated_time = int(''.join(filter(str.isdigit, time_str))) if time_str else 900
         except:
             estimated_time = 900  # default 15 minutes in seconds
         
@@ -648,8 +648,8 @@ async def update_task(
     if not title or len(title) < 2:
         raise HTTPException(400, "Title must be at least 2 characters")
 
-    if estimated_time < 1:
-        raise HTTPException(400, "Estimated time must be at least 1 second")
+    if estimated_time < 0:
+        raise HTTPException(400, "Estimated time cannot be negative")
 
     difficulty_weight = parse_difficulty(difficulty, estimated_time)
 
