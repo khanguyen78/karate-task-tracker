@@ -32,10 +32,9 @@ Round house kick (With targets. stationary. front leg), 10 count: left leg and r
 Round house kick (With targets. stationary. back leg), 10 count: left leg and right leg, 60
 Blocking drills #1,20 blocks - use the blockers, 60
 Punch & block drills #1, 10 punches each hand - use punch targets, 60
-Kata - Chon Ji, Do the kata 5 times. Your goal is to get to 19 steps - follow the count and stay together, 180
-Kata - Dan Gun, Do the kata 5 times. Your goal is to get to 21 steps - follow the count and stay together, 180
-Kata - Dan Gun, Do the kata 5 times. Your goal is to get to 21 steps - follow the count and stay together, 180
+Kata - Chon Ji, Do the kata 5 times, 180
 1 Step sparring,Practice 1-step sparring. Your goal is good stances fast techniques and loud ki-ap. Practice each technique 5 times, 180
 Sparring, wear your gloves. Practice kicks and punch with partner, 300
+Kata - Dan Gun, Do the kata 5 times, 180
 Cooldown and meditation, close your eyes(optional). sit on knees do not move, 60
 Student Oath,Remember to stand in the student oath stanch, 60
