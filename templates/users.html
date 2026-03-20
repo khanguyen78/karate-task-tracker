@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All Users</title>
+    <link rel="stylesheet" href="/static/style.css?v=2">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>👥 All Users</h1>
+        </div>
+
+        <div class="nav-buttons">
+            <a href="/" class="btn btn-secondary">🏠 Home</a>
+        </div>
+
+        <div class="card">
+            {% if users %}
+            <div class="completions-list">
+                {% for user in users %}
+                <div class="completion-item" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+                    <div>
+                        <h3 style="margin:0">{{ user.name }}</h3>
+                        <p style="margin:4px 0 0 0; color:#888; font-size:1rem;">
+                            {{ user.tasks }} task{% if user.tasks != 1 %}s{% endif %} &nbsp;·&nbsp;
+                            {{ user.completions }} completion{% if user.completions != 1 %}s{% endif %}
+                        </p>
+                    </div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <a href="/student/{{ user.id }}" class="btn btn-primary">🚀 Go to Dashboard</a>
+                        <a href="/results/{{ user.id }}" class="btn btn-secondary">📊 Results</a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <h2>No users yet</h2>
+                <p>Students will appear here once they log in.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

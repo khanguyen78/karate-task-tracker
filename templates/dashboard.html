@@ -182,16 +182,7 @@
         <a href="/results/{{ student_id }}">📊 View Results</a>
         <a href="/tasks/export/{{ student_id }}">⬇️ Download My CSV</a>
         <a href="/">🏠 Home</a>
-        <div class="menu-divider"></div>
-        <div class="sound-menu-wrap" onmouseenter="showFlyout()" onmouseleave="hideFlyout()">
-            <button class="menu-neutral" id="soundMenuBtn"><span id="soundLabel">🔔 Sound: Ding</span> ▸</button>
-            <div class="sound-flyout" id="soundSubmenu">
-                <button class="menu-sound-opt" id="sndNone"  onclick="setSound('none')">🔕 No Sound</button>
-                <button class="menu-sound-opt" id="sndDing"  onclick="setSound('ding')">🔔 Ding</button>
-                <button class="menu-sound-opt" id="sndChime" onclick="setSound('chime')">🎵 Chime</button>
-                <button class="menu-sound-opt" id="sndBell"  onclick="setSound('bell')">🔔 Bell</button>
-            </div>
-        </div>
+        <a href="/users">👥 All Users</a>
         <div class="menu-divider"></div>
         <button class="menu-neutral" onclick="closeMenu(); pauseTask()">⏸️ Pause</button>
         <button class="menu-neutral" onclick="closeMenu(); cancelTask()">❌ Cancel Task</button>
@@ -202,6 +193,16 @@
         <button class="menu-danger" onclick="closeMenu(); adminAuth(resetSession)">🔄 Reset Session</button>
         <button class="menu-danger" onclick="closeMenu(); adminAuth(clearSession)">🧹 Clear Session</button>
         <button class="menu-danger" onclick="closeMenu(); adminAuth(clearAllUserData)">🗑️ Clear All Data for User</button>
+        <div class="menu-divider"></div>
+        <div class="sound-menu-wrap" onmouseenter="showFlyout()" onmouseleave="hideFlyout()">
+            <button class="menu-neutral" id="soundMenuBtn"><span id="soundLabel">🔔 Sound: Ding</span> ▸</button>
+            <div class="sound-flyout" id="soundSubmenu">
+                <button class="menu-sound-opt" id="sndNone"  onclick="setSound('none')">🔕 No Sound</button>
+                <button class="menu-sound-opt" id="sndDing"  onclick="setSound('ding')">🔔 Ding</button>
+                <button class="menu-sound-opt" id="sndChime" onclick="setSound('chime')">🎵 Chime</button>
+                <button class="menu-sound-opt" id="sndBell"  onclick="setSound('bell')">🔔 Bell</button>
+            </div>
+        </div>
     </div>
 
     <!-- Task picker modal -->
