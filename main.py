@@ -216,6 +216,23 @@ async def home(request: Request):
         "students": students
     })
 
+@app.get("/users", response_class=HTMLResponse)
+async def all_users(request: Request):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''SELECT s.id, s.name,
+                        COUNT(DISTINCT t.id) as task_count,
+                        COUNT(DISTINCT tc.id) as completion_count
+                 FROM students s
+                 LEFT JOIN tasks t ON t.student_id = s.id
+                 LEFT JOIN task_completions tc ON tc.student_id = s.id
+                 GROUP BY s.id
+                 ORDER BY s.name''')
+    users = [{"id": row[0], "name": row[1], "tasks": row[2], "completions": row[3]}
+             for row in c.fetchall()]
+    conn.close()
+    return templates.TemplateResponse("users.html", {"request": request, "users": users})
+
 @app.post("/student/create")
 async def create_student(name: str = Form(...)):
     name = clean_csv_value(name)
