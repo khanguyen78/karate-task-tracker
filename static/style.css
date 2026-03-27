@@ -124,6 +124,16 @@ body {
     box-shadow: 0 6px 20px rgba(245, 87, 108, 0.4);
 }
 
+.btn-danger {
+    background: linear-gradient(135deg, #f5576c 0%, #c0392b 100%);
+    color: white;
+}
+
+.btn-danger:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(192, 57, 43, 0.4);
+}
+
 .btn-large {
     padding: 20px 40px;
     font-size: 1.5rem;

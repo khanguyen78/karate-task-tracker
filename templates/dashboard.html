@@ -187,6 +187,7 @@
         <div class="menu-divider"></div>
         <button class="menu-neutral" onclick="closeMenu(); pauseTask()">⏸️ Pause</button>
         <button class="menu-neutral" onclick="closeMenu(); cancelTask()">❌ Cancel Task</button>
+        <button class="menu-neutral" onclick="closeMenu(); adminAuth(showOverwriteUpload)">📋 Upload New CSV</button>
         <button class="menu-neutral" onclick="closeMenu(); adminAuth(showUploadForm)">➕ Add a Task</button>
         <button class="menu-neutral" onclick="closeMenu(); adminAuth(openModifyPicker)">✏️ Modify a Task</button>
         <button class="menu-neutral" onclick="closeMenu(); adminAuth(openRemovePicker)">🗑️ Remove a Task</button>
@@ -276,6 +277,16 @@
                 <input type="file" id="fileInputExtra" accept=".csv" required class="file-input">
                 <button type="submit" class="btn btn-primary">Upload 📤</button>
                 <button type="button" onclick="hideUploadForm()" class="btn btn-secondary">Cancel</button>
+            </form>
+        </div>
+
+        <div id="overwriteUploadCard" class="card" style="display: none; border: 2px solid #f5576c;">
+            <h3>📋 Upload New CSV</h3>
+            <p class="small-text">This will replace your current task list and clear the active session. Completion history is preserved.</p>
+            <form id="overwriteUploadForm" class="upload-form">
+                <input type="file" id="fileInputOverwrite" accept=".csv" required class="file-input">
+                <button type="submit" class="btn btn-danger">Replace Task List 📤</button>
+                <button type="button" onclick="hideOverwriteUpload()" class="btn btn-secondary">Cancel</button>
             </form>
         </div>
 
@@ -603,7 +614,11 @@
                 
                 if (response.ok) {
                     const data = await response.json();
-                    alert('✅ Successfully added ' + data.tasks_added + ' tasks!');
+                    const parts = [];
+                    if (data.tasks_added) parts.push(data.tasks_added + ' added');
+                    if (data.tasks_updated) parts.push(data.tasks_updated + ' updated');
+                    if (data.tasks_archived) parts.push(data.tasks_archived + ' archived');
+                    alert('✅ CSV uploaded! ' + (parts.length ? parts.join(', ') : 'No changes.'));
                     window.location.reload();
                 } else {
                     alert('Error uploading file');
@@ -635,6 +650,43 @@
             document.getElementById('uploadFormCard').style.display = 'none';
         }
 
+        function showOverwriteUpload() {
+            document.getElementById('overwriteUploadCard').style.display = 'block';
+            window.scrollTo({top: 0, behavior: 'smooth'});
+        }
+
+        function hideOverwriteUpload() {
+            document.getElementById('overwriteUploadCard').style.display = 'none';
+        }
+
+        async function handleOverwriteUpload(event) {
+            event.preventDefault();
+            const file = document.getElementById('fileInputOverwrite').files[0];
+            if (!file) { alert('Please select a file'); return; }
+
+            // First archive all existing tasks for this student via a special endpoint
+            try {
+                await fetch('/tasks/archive-all/' + studentId, { method: 'POST' });
+            } catch(e) { /* continue even if this fails */ }
+
+            // Then upload the new CSV (which will add fresh tasks)
+            const formData = new FormData();
+            formData.append('file', file);
+            try {
+                const uploadResp = await fetch('/upload-tasks/' + studentId, { method: 'POST', body: formData });
+                if (!uploadResp.ok) { alert('Error uploading CSV'); return; }
+                const data = await uploadResp.json();
+
+                // Clear the active session
+                await fetch('/student/' + studentId + '/reset', { method: 'POST' });
+
+                alert('✅ Task list replaced! ' + data.tasks_added + ' tasks loaded.');
+                window.location.reload();
+            } catch(e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
         function updateProgressBar() {
             const progressEl = document.getElementById('timerProgress');
             if (progressEl && currentTaskEstimatedTime > 0) {
@@ -663,6 +715,11 @@
         var uploadFormExtra = document.getElementById('uploadFormExtra');
         if (uploadFormExtra) {
             uploadFormExtra.addEventListener('submit', function(e) { handleUpload(e, 'fileInputExtra'); });
+        }
+
+        var overwriteUploadForm = document.getElementById('overwriteUploadForm');
+        if (overwriteUploadForm) {
+            overwriteUploadForm.addEventListener('submit', handleOverwriteUpload);
         }
 
         async function cancelTask() {

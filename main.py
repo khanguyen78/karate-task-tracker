@@ -7,6 +7,7 @@ import sqlite3
 import csv
 import io
 import os
+import json
 import logging
 import logging.handlers
 from pathlib import Path
@@ -84,7 +85,13 @@ def init_db():
                   estimated_time INTEGER,
                   difficulty_weight REAL DEFAULT 1.0,
                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                  archived INTEGER DEFAULT 0,
                   FOREIGN KEY (student_id) REFERENCES students(id))''')
+    # Migrate: add archived column if missing
+    try:
+        c.execute("ALTER TABLE tasks ADD COLUMN archived INTEGER DEFAULT 0")
+    except Exception:
+        pass
     
     c.execute('''CREATE TABLE IF NOT EXISTS task_completions
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -233,25 +240,159 @@ async def all_users(request: Request):
     conn.close()
     return templates.TemplateResponse("users.html", {"request": request, "users": users})
 
-@app.post("/student/create")
-async def create_student(name: str = Form(...)):
-    name = clean_csv_value(name)
-    if not name or len(name) < 2:
-        raise HTTPException(400, "Please enter a valid name (at least 2 characters)")
-    
+@app.get("/export/user/{student_id}")
+async def export_user_data(student_id: int):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    
+
+    c.execute("SELECT id, name, created_at FROM students WHERE id = ?", (student_id,))
+    student = c.fetchone()
+    if not student:
+        conn.close()
+        raise HTTPException(404, "Student not found")
+
+    c.execute("SELECT id, title, description, estimated_time, difficulty_weight, created_at FROM tasks WHERE student_id = ? AND archived = 0", (student_id,))
+    tasks = [{"id": r[0], "title": r[1], "description": r[2], "estimated_time": r[3], "difficulty_weight": r[4], "created_at": r[5]} for r in c.fetchall()]
+
+    c.execute('''SELECT tc.id, tc.task_id, tc.start_time, tc.end_time, tc.actual_time,
+                        tc.focus_score, tc.impact_score, tc.completed_at, COALESCE(tc.completed, 1)
+                 FROM task_completions tc WHERE tc.student_id = ?''', (student_id,))
+    completions = [{"id": r[0], "task_id": r[1], "start_time": r[2], "end_time": r[3],
+                    "actual_time": r[4], "focus_score": r[5], "impact_score": r[6],
+                    "completed_at": r[7], "completed": r[8]} for r in c.fetchall()]
+    conn.close()
+
+    data = {
+        "export_version": 1,
+        "exported_at": datetime.now().isoformat(),
+        "student": {"name": student[1], "created_at": student[2]},
+        "tasks": tasks,
+        "completions": completions
+    }
+
+    filename = f"{student[1].replace(' ', '_')}_session_data.json"
+    return Response(
+        content=json.dumps(data, indent=2),
+        media_type="application/json",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+@app.get("/export/all")
+async def export_all_data():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    c.execute("SELECT id, name, created_at FROM students ORDER BY id")
+    students_raw = c.fetchall()
+
+    all_data = []
+    for student in students_raw:
+        sid = student[0]
+        c.execute("SELECT id, title, description, estimated_time, difficulty_weight, created_at FROM tasks WHERE student_id = ? AND archived = 0", (sid,))
+        tasks = [{"id": r[0], "title": r[1], "description": r[2], "estimated_time": r[3], "difficulty_weight": r[4], "created_at": r[5]} for r in c.fetchall()]
+
+        c.execute('''SELECT id, task_id, start_time, end_time, actual_time, focus_score, impact_score, completed_at, COALESCE(completed, 1)
+                     FROM task_completions WHERE student_id = ?''', (sid,))
+        completions = [{"id": r[0], "task_id": r[1], "start_time": r[2], "end_time": r[3],
+                        "actual_time": r[4], "focus_score": r[5], "impact_score": r[6],
+                        "completed_at": r[7], "completed": r[8]} for r in c.fetchall()]
+
+        all_data.append({"student": {"name": student[1], "created_at": student[2]}, "tasks": tasks, "completions": completions})
+
+    conn.close()
+    data = {"export_version": 1, "exported_at": datetime.now().isoformat(), "users": all_data}
+    return Response(
+        content=json.dumps(data, indent=2),
+        media_type="application/json",
+        headers={"Content-Disposition": "attachment; filename=all_users_session_data.json"}
+    )
+
+@app.post("/import/data")
+async def import_user_data(file: UploadFile = File(...)):
+    contents = await file.read()
     try:
-        c.execute("INSERT INTO students (name) VALUES (?)", (name,))
-        conn.commit()
-        student_id = c.lastrowid
-        logger.info(f"New student created: '{name}' (id={student_id})")
-    except sqlite3.IntegrityError:
-        c.execute("SELECT id FROM students WHERE name = ?", (name,))
-        student_id = c.fetchone()[0]
-        logger.debug(f"Student '{name}' already exists (id={student_id}), redirecting")
-    
+        data = json.loads(contents.decode("utf-8"))
+    except Exception:
+        raise HTTPException(400, "Invalid JSON file")
+
+    # Support both single-user and all-users export formats
+    if "users" in data:
+        user_list = data["users"]
+    elif "student" in data:
+        user_list = [{"student": data["student"], "tasks": data.get("tasks", []), "completions": data.get("completions", [])}]
+    else:
+        raise HTTPException(400, "Unrecognised export format")
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    imported = []
+
+    for entry in user_list:
+        student_info = entry["student"]
+        name = student_info["name"].strip().title()
+
+        # Find or create student
+        c.execute("SELECT id FROM students WHERE name = ? COLLATE NOCASE", (name,))
+        row = c.fetchone()
+        if row:
+            student_id = row[0]
+        else:
+            c.execute("INSERT INTO students (name, created_at) VALUES (?, ?)", (name, student_info.get("created_at")))
+            student_id = c.lastrowid
+
+        # Build old_task_id → new_task_id map
+        task_id_map = {}
+        for task in entry.get("tasks", []):
+            c.execute('''INSERT INTO tasks (student_id, title, description, estimated_time, difficulty_weight, created_at)
+                         VALUES (?, ?, ?, ?, ?, ?)''',
+                      (student_id, task["title"], task.get("description", ""),
+                       task.get("estimated_time", 900), task.get("difficulty_weight", 1.0),
+                       task.get("created_at")))
+            task_id_map[task["id"]] = c.lastrowid
+
+        for comp in entry.get("completions", []):
+            new_task_id = task_id_map.get(comp["task_id"])
+            if new_task_id:
+                c.execute('''INSERT INTO task_completions
+                             (student_id, task_id, start_time, end_time, actual_time, focus_score, impact_score, completed_at, completed)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                          (student_id, new_task_id, comp.get("start_time"), comp.get("end_time"),
+                           comp.get("actual_time", 0), comp.get("focus_score", 1.0),
+                           comp.get("impact_score", 5.0), comp.get("completed_at"), comp.get("completed", 1)))
+
+        imported.append(name)
+
+    conn.commit()
+    conn.close()
+    logger.info(f"Imported data for: {', '.join(imported)}")
+    return {"success": True, "imported": imported}
+
+@app.post("/student/create")
+async def create_student(name: str = Form(...)):
+    name = clean_csv_value(name).title()
+    if not name or len(name) < 2:
+        raise HTTPException(400, "Please enter a valid name (at least 2 characters)")
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    # Check for existing student case-insensitively
+    c.execute("SELECT id, name FROM students WHERE name = ? COLLATE NOCASE", (name,))
+    existing = c.fetchone()
+
+    if existing:
+        student_id = existing[0]
+        logger.debug(f"Student '{name}' matched existing '{existing[1]}' (id={student_id}), redirecting")
+    else:
+        try:
+            c.execute("INSERT INTO students (name) VALUES (?)", (name,))
+            conn.commit()
+            student_id = c.lastrowid
+            logger.info(f"New student created: '{name}' (id={student_id})")
+        except sqlite3.IntegrityError:
+            c.execute("SELECT id FROM students WHERE name = ? COLLATE NOCASE", (name,))
+            student_id = c.fetchone()[0]
+
     conn.close()
     return RedirectResponse(f"/student/{student_id}", status_code=303)
 
@@ -269,7 +410,7 @@ async def student_dashboard(request: Request, student_id: int):
     
     logger.debug(f"Dashboard loaded for student '{student[0]}' (id={student_id})")
     
-    c.execute("SELECT id, title, description, estimated_time, difficulty_weight FROM tasks WHERE student_id = ?", (student_id,))
+    c.execute("SELECT id, title, description, estimated_time, difficulty_weight FROM tasks WHERE student_id = ? AND archived = 0", (student_id,))
     tasks = [{"id": row[0], "title": row[1], "description": row[2], 
               "estimated_time": row[3],
               "difficulty_weight": row[4]} for row in c.fetchall()]
@@ -310,39 +451,77 @@ async def upload_tasks(student_id: int, file: UploadFile = File(...)):
     if not file.filename.endswith('.csv'):
         logger.warning(f"Student {student_id} attempted to upload non-CSV file: {file.filename}")
         raise HTTPException(400, "Please upload a CSV file")
-    
+
     logger.info(f"Student {student_id} uploading task CSV: {file.filename}")
-    
+
     contents = await file.read()
     csv_file = io.StringIO(contents.decode('utf-8'))
     reader = csv.DictReader(csv_file)
-    
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    
-    tasks_added = 0
+
+    # Parse incoming CSV rows
+    incoming = []
     for row in reader:
         title = clean_csv_value(row.get('task', ''))
+        if not title:
+            continue
         description = clean_csv_value(row.get('description', ''))
-        
         time_str = clean_csv_value(row.get('estimated_time', ''))
         try:
             estimated_time = int(''.join(filter(str.isdigit, time_str))) if time_str else 900
         except:
-            estimated_time = 900  # default 15 minutes in seconds
-        
-        if title:
-            diff_str = clean_csv_value(row.get('difficulty', ''))
-            difficulty = parse_difficulty(diff_str, estimated_time)
-            c.execute('''INSERT INTO tasks (student_id, title, description, estimated_time, difficulty_weight)
-                         VALUES (?, ?, ?, ?, ?)''', (student_id, title, description, estimated_time, difficulty))
-            tasks_added += 1
-    
+            estimated_time = 900
+        diff_str = clean_csv_value(row.get('difficulty', ''))
+        difficulty = parse_difficulty(diff_str, estimated_time)
+        incoming.append((title, description, estimated_time, difficulty))
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    # Load all existing tasks (including archived) keyed by lower-case title
+    c.execute("SELECT id, title, archived FROM tasks WHERE student_id = ?", (student_id,))
+    existing = {row[1].lower(): {"id": row[0], "archived": row[2]} for row in c.fetchall()}
+
+    incoming_titles_lower = {t[0].lower() for t in incoming}
+
+    # Archive tasks not in the new CSV
+    archived_count = 0
+    for lower_title, task in existing.items():
+        if lower_title not in incoming_titles_lower and task["archived"] == 0:
+            c.execute("UPDATE tasks SET archived = 1 WHERE id = ?", (task["id"],))
+            archived_count += 1
+
+    # Merge or insert incoming tasks
+    added = 0
+    updated = 0
+    for title, description, estimated_time, difficulty in incoming:
+        lower = title.lower()
+        if lower in existing:
+            # Unarchive and update
+            c.execute('''UPDATE tasks SET description = ?, estimated_time = ?,
+                         difficulty_weight = ?, archived = 0
+                         WHERE id = ?''',
+                      (description, estimated_time, difficulty, existing[lower]["id"]))
+            updated += 1
+        else:
+            c.execute('''INSERT INTO tasks (student_id, title, description, estimated_time, difficulty_weight, archived)
+                         VALUES (?, ?, ?, ?, ?, 0)''',
+                      (student_id, title, description, estimated_time, difficulty))
+            added += 1
+
     conn.commit()
     conn.close()
-    
-    logger.info(f"Student {student_id} CSV upload complete: {tasks_added} tasks added from '{file.filename}'")
-    return {"success": True, "tasks_added": tasks_added}
+
+    logger.info(f"Student {student_id} CSV upload: {added} added, {updated} updated, {archived_count} archived from '{file.filename}'")
+    return {"success": True, "tasks_added": added, "tasks_updated": updated, "tasks_archived": archived_count}
+
+@app.post("/tasks/archive-all/{student_id}")
+async def archive_all_tasks(student_id: int):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("UPDATE tasks SET archived = 1 WHERE student_id = ? AND archived = 0", (student_id,))
+    conn.commit()
+    conn.close()
+    return {"success": True}
 
 @app.get("/tasks/export/{student_id}")
 async def export_tasks(student_id: int):
@@ -355,7 +534,7 @@ async def export_tasks(student_id: int):
         conn.close()
         raise HTTPException(404, "Student not found")
 
-    c.execute("SELECT title, description, estimated_time, difficulty_weight FROM tasks WHERE student_id = ? ORDER BY id", (student_id,))
+    c.execute("SELECT title, description, estimated_time, difficulty_weight FROM tasks WHERE student_id = ? AND archived = 0 ORDER BY id", (student_id,))
     rows = c.fetchall()
     conn.close()
 
