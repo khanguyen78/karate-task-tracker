@@ -181,6 +181,7 @@
     <div class="menu-drawer" id="menuDrawer">
         <a href="/results/{{ student_id }}">📊 View Results</a>
         <a href="/tasks/export/{{ student_id }}">⬇️ Download My CSV</a>
+        <a href="/export/user/{{ student_id }}">💾 Export My Data</a>
         <a href="/">🏠 Home</a>
         <a href="/users">👥 All Users</a>
         <div class="menu-divider"></div>
@@ -195,7 +196,7 @@
         <button class="menu-danger" onclick="closeMenu(); adminAuth(clearAllUserData)">🗑️ Clear All Data for User</button>
         <div class="menu-divider"></div>
         <div class="sound-menu-wrap" onmouseenter="showFlyout()" onmouseleave="hideFlyout()">
-            <button class="menu-neutral" id="soundMenuBtn"><span id="soundLabel">🔔 Sound: Ding</span> ▸</button>
+            <button class="menu-neutral" id="soundMenuBtn"><span id="soundLabel">🔕 Sound: Off</span> ▸</button>
             <div class="sound-flyout" id="soundSubmenu">
                 <button class="menu-sound-opt" id="sndNone"  onclick="setSound('none')">🔕 No Sound</button>
                 <button class="menu-sound-opt" id="sndDing"  onclick="setSound('ding')">🔔 Ding</button>
@@ -340,7 +341,7 @@
 
         let advancing = false;
 
-        let currentSound = localStorage.getItem('karateSound') || 'ding';
+        let currentSound = localStorage.getItem('karateSound') || 'none';
 
         function toggleSoundMenu() {} // no-op, now handled by CSS hover
 
@@ -825,6 +826,20 @@
             document.getElementById('menuOverlay').classList.remove('open');
             document.getElementById('menuBtn').textContent = '☰';
         }
+        // Keyboard shortcuts: Enter/Space = Finished, P = Pause
+        document.addEventListener('keydown', function(e) {
+            // Ignore if typing in an input or textarea
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+            if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) {
+                e.preventDefault();
+                const btn = document.getElementById('finishBtn');
+                if (btn && !btn.disabled) btn.click();
+            }
+            if ((e.key === 'p' || e.key === 'P') && !e.repeat) {
+                pauseTask();
+            }
+        });
+
     </script>
 </body>
 </html>
