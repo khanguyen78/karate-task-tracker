@@ -664,23 +664,13 @@
             const file = document.getElementById('fileInputOverwrite').files[0];
             if (!file) { alert('Please select a file'); return; }
 
-            // First archive all existing tasks for this student via a special endpoint
-            try {
-                await fetch('/tasks/archive-all/' + studentId, { method: 'POST' });
-            } catch(e) { /* continue even if this fails */ }
-
-            // Then upload the new CSV (which will add fresh tasks)
             const formData = new FormData();
             formData.append('file', file);
             try {
-                const uploadResp = await fetch('/upload-tasks/' + studentId, { method: 'POST', body: formData });
-                if (!uploadResp.ok) { alert('Error uploading CSV'); return; }
-                const data = await uploadResp.json();
-
-                // Clear the active session
-                await fetch('/student/' + studentId + '/reset', { method: 'POST' });
-
-                alert('✅ Task list replaced! ' + data.tasks_added + ' tasks loaded.');
+                const response = await fetch('/upload-tasks/overwrite/' + studentId, { method: 'POST', body: formData });
+                if (!response.ok) { alert('Error uploading CSV'); return; }
+                const data = await response.json();
+                alert('✅ Task list replaced! ' + data.tasks_added + ' added, ' + data.tasks_updated + ' updated.');
                 window.location.reload();
             } catch(e) {
                 alert('Error: ' + e.message);

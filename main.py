@@ -523,6 +523,68 @@ async def archive_all_tasks(student_id: int):
     conn.close()
     return {"success": True}
 
+@app.post("/upload-tasks/overwrite/{student_id}")
+async def overwrite_tasks(student_id: int, file: UploadFile = File(...)):
+    """Replace the task list: archive all existing tasks, then merge incoming CSV by title."""
+    if not file.filename.endswith('.csv'):
+        raise HTTPException(400, "Please upload a CSV file")
+
+    contents = await file.read()
+    csv_file = io.StringIO(contents.decode('utf-8'))
+    reader = csv.DictReader(csv_file)
+
+    incoming = []
+    for row in reader:
+        title = clean_csv_value(row.get('task', ''))
+        if not title:
+            continue
+        description = clean_csv_value(row.get('description', ''))
+        time_str = clean_csv_value(row.get('estimated_time', ''))
+        try:
+            estimated_time = int(''.join(filter(str.isdigit, time_str))) if time_str else 900
+        except:
+            estimated_time = 900
+        diff_str = clean_csv_value(row.get('difficulty', ''))
+        difficulty = parse_difficulty(diff_str, estimated_time)
+        incoming.append((title, description, estimated_time, difficulty))
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    # Step 1: archive ALL current active tasks
+    c.execute("UPDATE tasks SET archived = 1 WHERE student_id = ? AND archived = 0", (student_id,))
+
+    # Step 2: clear active session
+    c.execute("DELETE FROM active_sessions WHERE student_id = ?", (student_id,))
+
+    # Step 3: load all tasks (including just-archived) by lower title
+    c.execute("SELECT id, title FROM tasks WHERE student_id = ?", (student_id,))
+    # Keep only the most recent task per title (highest id)
+    existing = {}
+    for row in c.fetchall():
+        existing[row[1].lower()] = row[0]
+
+    # Step 4: for each incoming task, update existing (unarchive + new values) or insert
+    added = updated = 0
+    for title, description, estimated_time, difficulty in incoming:
+        lower = title.lower()
+        if lower in existing:
+            c.execute('''UPDATE tasks
+                         SET description = ?, estimated_time = ?, difficulty_weight = ?, archived = 0
+                         WHERE id = ?''',
+                      (description, estimated_time, difficulty, existing[lower]))
+            updated += 1
+        else:
+            c.execute('''INSERT INTO tasks (student_id, title, description, estimated_time, difficulty_weight, archived)
+                         VALUES (?, ?, ?, ?, ?, 0)''',
+                      (student_id, title, description, estimated_time, difficulty))
+            added += 1
+
+    conn.commit()
+    conn.close()
+    logger.info(f"Student {student_id} overwrite upload: {added} added, {updated} updated from '{file.filename}'")
+    return {"success": True, "tasks_added": added, "tasks_updated": updated}
+
 @app.get("/tasks/export/{student_id}")
 async def export_tasks(student_id: int):
     conn = sqlite3.connect(DB_PATH)
