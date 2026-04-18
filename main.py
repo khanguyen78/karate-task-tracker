@@ -86,12 +86,19 @@ def init_db():
                   difficulty_weight REAL DEFAULT 1.0,
                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                   archived INTEGER DEFAULT 0,
+                  task_order INTEGER DEFAULT 0,
+                  csv_task_id TEXT,
                   FOREIGN KEY (student_id) REFERENCES students(id))''')
-    # Migrate: add archived column if missing
-    try:
-        c.execute("ALTER TABLE tasks ADD COLUMN archived INTEGER DEFAULT 0")
-    except Exception:
-        pass
+    # Migrations
+    for col, definition in [
+        ("archived", "INTEGER DEFAULT 0"),
+        ("task_order", "INTEGER DEFAULT 0"),
+        ("csv_task_id", "TEXT"),
+    ]:
+        try:
+            c.execute(f"ALTER TABLE tasks ADD COLUMN {col} {definition}")
+        except Exception:
+            pass
     
     c.execute('''CREATE TABLE IF NOT EXISTS task_completions
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -410,7 +417,7 @@ async def student_dashboard(request: Request, student_id: int):
     
     logger.debug(f"Dashboard loaded for student '{student[0]}' (id={student_id})")
     
-    c.execute("SELECT id, title, description, estimated_time, difficulty_weight FROM tasks WHERE student_id = ? AND archived = 0", (student_id,))
+    c.execute("SELECT id, title, description, estimated_time, difficulty_weight FROM tasks WHERE student_id = ? AND archived = 0 ORDER BY task_order ASC, id ASC", (student_id,))
     tasks = [{"id": row[0], "title": row[1], "description": row[2], 
               "estimated_time": row[3],
               "difficulty_weight": row[4]} for row in c.fetchall()]
@@ -446,24 +453,16 @@ async def student_dashboard(request: Request, student_id: int):
         "streak": streak
     })
 
-@app.post("/upload-tasks/{student_id}")
-async def upload_tasks(student_id: int, file: UploadFile = File(...)):
-    if not file.filename.endswith('.csv'):
-        logger.warning(f"Student {student_id} attempted to upload non-CSV file: {file.filename}")
-        raise HTTPException(400, "Please upload a CSV file")
-
-    logger.info(f"Student {student_id} uploading task CSV: {file.filename}")
-
-    contents = await file.read()
+def _parse_csv(contents: bytes) -> list:
+    """Parse CSV bytes into a list of task dicts with taskid, order, title, etc."""
     csv_file = io.StringIO(contents.decode('utf-8'))
     reader = csv.DictReader(csv_file)
-
-    # Parse incoming CSV rows
-    incoming = []
-    for row in reader:
+    tasks = []
+    for order, row in enumerate(reader):
         title = clean_csv_value(row.get('task', ''))
         if not title:
             continue
+        csv_task_id = clean_csv_value(row.get('taskid', '')) or None
         description = clean_csv_value(row.get('description', ''))
         time_str = clean_csv_value(row.get('estimated_time', ''))
         try:
@@ -472,44 +471,80 @@ async def upload_tasks(student_id: int, file: UploadFile = File(...)):
             estimated_time = 900
         diff_str = clean_csv_value(row.get('difficulty', ''))
         difficulty = parse_difficulty(diff_str, estimated_time)
-        incoming.append((title, description, estimated_time, difficulty))
+        # Use taskid as order if numeric, otherwise use CSV row position
+        try:
+            task_order = int(csv_task_id) if csv_task_id and csv_task_id.isdigit() else order
+        except:
+            task_order = order
+        tasks.append({
+            "csv_task_id": csv_task_id,
+            "title": title,
+            "description": description,
+            "estimated_time": estimated_time,
+            "difficulty": difficulty,
+            "order": task_order,
+        })
+    return tasks
+
+@app.post("/upload-tasks/{student_id}")
+async def upload_tasks(student_id: int, file: UploadFile = File(...)):
+    if not file.filename.endswith('.csv'):
+        logger.warning(f"Student {student_id} attempted to upload non-CSV file: {file.filename}")
+        raise HTTPException(400, "Please upload a CSV file")
+
+    logger.info(f"Student {student_id} uploading task CSV: {file.filename}")
+    incoming = _parse_csv(await file.read())
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
-    # Load all existing tasks (including archived) keyed by lower-case title
-    c.execute("SELECT id, title, archived FROM tasks WHERE student_id = ?", (student_id,))
-    existing = {row[1].lower(): {"id": row[0], "archived": row[2]} for row in c.fetchall()}
+    # Load existing tasks keyed by csv_task_id (preferred) then lower title
+    c.execute("SELECT id, title, csv_task_id, archived FROM tasks WHERE student_id = ?", (student_id,))
+    by_csvid = {}
+    by_title = {}
+    for row in c.fetchall():
+        if row[2]:
+            by_csvid[str(row[2])] = {"id": row[0], "archived": row[3]}
+        by_title[row[1].lower()] = {"id": row[0], "archived": row[3]}
 
-    incoming_titles_lower = {t[0].lower() for t in incoming}
+    incoming_keys = set()
+    for t in incoming:
+        incoming_keys.add(str(t["csv_task_id"]) if t["csv_task_id"] else t["title"].lower())
 
-    # Archive tasks not in the new CSV
+    # Archive active tasks no longer in the new CSV
     archived_count = 0
-    for lower_title, task in existing.items():
-        if lower_title not in incoming_titles_lower and task["archived"] == 0:
+    for row_csvid, task in by_csvid.items():
+        if row_csvid not in incoming_keys and task["archived"] == 0:
             c.execute("UPDATE tasks SET archived = 1 WHERE id = ?", (task["id"],))
             archived_count += 1
+    if not by_csvid:  # fallback to title matching if no csv_task_ids exist
+        for lower_title, task in by_title.items():
+            if lower_title not in incoming_keys and task["archived"] == 0:
+                c.execute("UPDATE tasks SET archived = 1 WHERE id = ?", (task["id"],))
+                archived_count += 1
 
-    # Merge or insert incoming tasks
-    added = 0
-    updated = 0
-    for title, description, estimated_time, difficulty in incoming:
-        lower = title.lower()
-        if lower in existing:
-            # Unarchive and update
-            c.execute('''UPDATE tasks SET description = ?, estimated_time = ?,
-                         difficulty_weight = ?, archived = 0
-                         WHERE id = ?''',
-                      (description, estimated_time, difficulty, existing[lower]["id"]))
+    added = updated = 0
+    for t in incoming:
+        existing = (by_csvid.get(str(t["csv_task_id"])) if t["csv_task_id"] else None) or by_title.get(t["title"].lower())
+        if existing:
+            c.execute('''UPDATE tasks SET title=?, description=?, estimated_time=?,
+                         difficulty_weight=?, archived=0, task_order=?, csv_task_id=?
+                         WHERE id=?''',
+                      (t["title"], t["description"], t["estimated_time"],
+                       t["difficulty"], t["order"], t["csv_task_id"], existing["id"]))
             updated += 1
         else:
-            c.execute('''INSERT INTO tasks (student_id, title, description, estimated_time, difficulty_weight, archived)
-                         VALUES (?, ?, ?, ?, ?, 0)''',
-                      (student_id, title, description, estimated_time, difficulty))
+            c.execute('''INSERT INTO tasks (student_id, title, description, estimated_time,
+                         difficulty_weight, archived, task_order, csv_task_id)
+                         VALUES (?,?,?,?,?,0,?,?)''',
+                      (student_id, t["title"], t["description"], t["estimated_time"],
+                       t["difficulty"], t["order"], t["csv_task_id"]))
             added += 1
 
     conn.commit()
     conn.close()
+    logger.info(f"Student {student_id} CSV upload: {added} added, {updated} updated, {archived_count} archived")
+    return {"success": True, "tasks_added": added, "tasks_updated": updated, "tasks_archived": archived_count}
 
     logger.info(f"Student {student_id} CSV upload: {added} added, {updated} updated, {archived_count} archived from '{file.filename}'")
     return {"success": True, "tasks_added": added, "tasks_updated": updated, "tasks_archived": archived_count}
@@ -525,64 +560,49 @@ async def archive_all_tasks(student_id: int):
 
 @app.post("/upload-tasks/overwrite/{student_id}")
 async def overwrite_tasks(student_id: int, file: UploadFile = File(...)):
-    """Replace the task list: archive all existing tasks, then merge incoming CSV by title."""
+    """Replace the task list atomically using taskid as the stable key."""
     if not file.filename.endswith('.csv'):
         raise HTTPException(400, "Please upload a CSV file")
 
-    contents = await file.read()
-    csv_file = io.StringIO(contents.decode('utf-8'))
-    reader = csv.DictReader(csv_file)
-
-    incoming = []
-    for row in reader:
-        title = clean_csv_value(row.get('task', ''))
-        if not title:
-            continue
-        description = clean_csv_value(row.get('description', ''))
-        time_str = clean_csv_value(row.get('estimated_time', ''))
-        try:
-            estimated_time = int(''.join(filter(str.isdigit, time_str))) if time_str else 900
-        except:
-            estimated_time = 900
-        diff_str = clean_csv_value(row.get('difficulty', ''))
-        difficulty = parse_difficulty(diff_str, estimated_time)
-        incoming.append((title, description, estimated_time, difficulty))
+    incoming = _parse_csv(await file.read())
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
-    # Step 1: archive ALL current active tasks
+    # Archive all active tasks and clear session
     c.execute("UPDATE tasks SET archived = 1 WHERE student_id = ? AND archived = 0", (student_id,))
-
-    # Step 2: clear active session
     c.execute("DELETE FROM active_sessions WHERE student_id = ?", (student_id,))
 
-    # Step 3: load all tasks (including just-archived) by lower title
-    c.execute("SELECT id, title FROM tasks WHERE student_id = ?", (student_id,))
-    # Keep only the most recent task per title (highest id)
-    existing = {}
+    # Load all tasks (now archived) keyed by csv_task_id then lower title
+    c.execute("SELECT id, title, csv_task_id FROM tasks WHERE student_id = ?", (student_id,))
+    by_csvid = {}
+    by_title = {}
     for row in c.fetchall():
-        existing[row[1].lower()] = row[0]
+        if row[2]:
+            by_csvid[str(row[2])] = row[0]
+        by_title[row[1].lower()] = row[0]
 
-    # Step 4: for each incoming task, update existing (unarchive + new values) or insert
     added = updated = 0
-    for title, description, estimated_time, difficulty in incoming:
-        lower = title.lower()
-        if lower in existing:
-            c.execute('''UPDATE tasks
-                         SET description = ?, estimated_time = ?, difficulty_weight = ?, archived = 0
-                         WHERE id = ?''',
-                      (description, estimated_time, difficulty, existing[lower]))
+    for t in incoming:
+        existing_id = (by_csvid.get(str(t["csv_task_id"])) if t["csv_task_id"] else None) or by_title.get(t["title"].lower())
+        if existing_id:
+            c.execute('''UPDATE tasks SET title=?, description=?, estimated_time=?,
+                         difficulty_weight=?, archived=0, task_order=?, csv_task_id=?
+                         WHERE id=?''',
+                      (t["title"], t["description"], t["estimated_time"],
+                       t["difficulty"], t["order"], t["csv_task_id"], existing_id))
             updated += 1
         else:
-            c.execute('''INSERT INTO tasks (student_id, title, description, estimated_time, difficulty_weight, archived)
-                         VALUES (?, ?, ?, ?, ?, 0)''',
-                      (student_id, title, description, estimated_time, difficulty))
+            c.execute('''INSERT INTO tasks (student_id, title, description, estimated_time,
+                         difficulty_weight, archived, task_order, csv_task_id)
+                         VALUES (?,?,?,?,?,0,?,?)''',
+                      (student_id, t["title"], t["description"], t["estimated_time"],
+                       t["difficulty"], t["order"], t["csv_task_id"]))
             added += 1
 
     conn.commit()
     conn.close()
-    logger.info(f"Student {student_id} overwrite upload: {added} added, {updated} updated from '{file.filename}'")
+    logger.info(f"Student {student_id} overwrite upload: {added} added, {updated} updated")
     return {"success": True, "tasks_added": added, "tasks_updated": updated}
 
 @app.get("/tasks/export/{student_id}")
@@ -596,7 +616,8 @@ async def export_tasks(student_id: int):
         conn.close()
         raise HTTPException(404, "Student not found")
 
-    c.execute("SELECT title, description, estimated_time, difficulty_weight FROM tasks WHERE student_id = ? AND archived = 0 ORDER BY id", (student_id,))
+
+    c.execute("SELECT csv_task_id, title, description, estimated_time, difficulty_weight, task_order FROM tasks WHERE student_id = ? AND archived = 0 ORDER BY task_order ASC, id ASC", (student_id,))
     rows = c.fetchall()
     conn.close()
 
@@ -604,9 +625,10 @@ async def export_tasks(student_id: int):
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(['task', 'description', 'estimated_time', 'difficulty'])
-    for row in rows:
-        writer.writerow([row[0], row[1] or '', row[2], weight_to_label.get(row[3], 'medium')])
+    writer.writerow(['taskid', 'task', 'description', 'estimated_time', 'difficulty'])
+    for i, row in enumerate(rows):
+        taskid = row[0] if row[0] else (i + 1)
+        writer.writerow([taskid, row[1], row[2] or '', row[3], weight_to_label.get(row[4], 'medium')])
 
     filename = f"{student[0].replace(' ', '_')}_tasks.csv"
     return Response(

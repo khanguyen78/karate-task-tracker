@@ -5,6 +5,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>All Users</title>
     <link rel="stylesheet" href="/static/style.css?v=2">
+    <style>
+        .user-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 16px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .user-row:last-child { border-bottom: none; }
+        .user-info h3 { margin: 0; font-size: 1.3rem; }
+        .user-meta { margin: 4px 0 0 0; color: #888; font-size: 1rem; }
+        .user-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .import-area {
+            border: 2px dashed #ccc;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            margin-top: 10px;
+            transition: border-color 0.2s;
+        }
+        .import-area:hover { border-color: #667eea; }
+        .import-status { margin-top: 12px; font-weight: 600; }
+        .import-status.success { color: #43a047; }
+        .import-status.error { color: #e53935; }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -14,23 +41,39 @@
 
         <div class="nav-buttons">
             <a href="/" class="btn btn-secondary">🏠 Home</a>
+            <a href="/export/all" class="btn btn-primary">⬇️ Export All Users</a>
         </div>
 
+        <!-- Import -->
         <div class="card">
+            <h2>📥 Import Session Data</h2>
+            <p>Upload a previously exported JSON file to restore one or more users.</p>
+            <div class="import-area">
+                <input type="file" id="importFile" accept=".json" style="display:none">
+                <button class="btn btn-primary" onclick="document.getElementById('importFile').click()">Choose JSON File</button>
+                <p id="importFileName" style="margin:8px 0 0 0; color:#888; font-size:0.95rem;">No file selected</p>
+            </div>
+            <div id="importStatus" class="import-status" style="display:none"></div>
+        </div>
+
+        <!-- User List -->
+        <div class="card">
+            <h2>Students</h2>
             {% if users %}
-            <div class="completions-list">
+            <div>
                 {% for user in users %}
-                <div class="completion-item" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
-                    <div>
-                        <h3 style="margin:0">{{ user.name }}</h3>
-                        <p style="margin:4px 0 0 0; color:#888; font-size:1rem;">
+                <div class="user-row">
+                    <div class="user-info">
+                        <h3>{{ user.name }}</h3>
+                        <p class="user-meta">
                             {{ user.tasks }} task{% if user.tasks != 1 %}s{% endif %} &nbsp;·&nbsp;
                             {{ user.completions }} completion{% if user.completions != 1 %}s{% endif %}
                         </p>
                     </div>
-                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                        <a href="/student/{{ user.id }}" class="btn btn-primary">🚀 Go to Dashboard</a>
+                    <div class="user-actions">
+                        <a href="/student/{{ user.id }}" class="btn btn-primary">🚀 Dashboard</a>
                         <a href="/results/{{ user.id }}" class="btn btn-secondary">📊 Results</a>
+                        <a href="/export/user/{{ user.id }}" class="btn btn-secondary">⬇️ Export</a>
                     </div>
                 </div>
                 {% endfor %}
@@ -43,5 +86,39 @@
             {% endif %}
         </div>
     </div>
+
+    <script>
+        const fileInput = document.getElementById('importFile');
+        const statusEl = document.getElementById('importStatus');
+
+        fileInput.addEventListener('change', async function() {
+            const file = this.files[0];
+            if (!file) return;
+            document.getElementById('importFileName').textContent = file.name;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            statusEl.style.display = 'block';
+            statusEl.className = 'import-status';
+            statusEl.textContent = '⏳ Importing...';
+
+            try {
+                const response = await fetch('/import/data', { method: 'POST', body: formData });
+                const data = await response.json();
+                if (response.ok) {
+                    statusEl.className = 'import-status success';
+                    statusEl.textContent = '✅ Imported: ' + data.imported.join(', ');
+                    setTimeout(() => window.location.reload(), 1500);
+                } else {
+                    statusEl.className = 'import-status error';
+                    statusEl.textContent = '❌ ' + (data.detail || 'Import failed');
+                }
+            } catch (e) {
+                statusEl.className = 'import-status error';
+                statusEl.textContent = '❌ Error: ' + e.message;
+            }
+        });
+    </script>
 </body>
 </html>

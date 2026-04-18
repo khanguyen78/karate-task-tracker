@@ -186,6 +186,7 @@
         <a href="/users">👥 All Users</a>
         <div class="menu-divider"></div>
         <button class="menu-neutral" onclick="closeMenu(); pauseTask()">⏸️ Pause</button>
+        <button class="menu-neutral" onclick="toggleAutoAdvance()" id="autoAdvanceBtn">⏭️ Auto-Advance: Off</button>
         <button class="menu-neutral" onclick="closeMenu(); cancelTask()">❌ Cancel Task</button>
         <button class="menu-neutral" onclick="closeMenu(); adminAuth(showOverwriteUpload)">📋 Upload New CSV</button>
         <button class="menu-neutral" onclick="closeMenu(); adminAuth(showUploadForm)">➕ Add a Task</button>
@@ -431,6 +432,22 @@
             } catch (e) { /* audio not supported */ }
         }
 
+        let autoAdvance = localStorage.getItem('karateAutoAdvance') === 'true';
+
+        function toggleAutoAdvance() {
+            autoAdvance = !autoAdvance;
+            localStorage.setItem('karateAutoAdvance', autoAdvance);
+            updateAutoAdvanceUI();
+        }
+
+        function updateAutoAdvanceUI() {
+            const btn = document.getElementById('autoAdvanceBtn');
+            if (btn) btn.textContent = autoAdvance ? '⏭️ Auto-Advance: On' : '⏭️ Auto-Advance: Off';
+        }
+
+        // Init on load
+        updateAutoAdvanceUI();
+
         async function updateTimer() {
             elapsedSeconds++;
 
@@ -442,11 +459,16 @@
                     timerEl.style.color = '';
                 } else {
                     const overtime = elapsedSeconds - currentTaskEstimatedTime;
-                    timerEl.textContent = '+' + overtime + 's';
-                    timerEl.style.color = '#ff6b6b';
                     if (overtime === 1) {
                         playDing();
+                        if (autoAdvance) {
+                            clearInterval(timerInterval);
+                            await finishTask();
+                            return;
+                        }
                     }
+                    timerEl.textContent = '+' + overtime + 's';
+                    timerEl.style.color = '#ff6b6b';
                 }
             }
 

@@ -1,0 +1,12 @@
+taskid,task,description,estimated_time,difficulty
+1,Warm Up Stretches,Full body dynamic stretching before training,300,easy
+2,Front Kick Basics,Practice front kick technique — focus on chamber and snap,600,easy
+3,Roundhouse Kick,Focus on hip rotation and follow-through,900,medium
+4,Side Kick Drills,Practice side kick with balance and extension,900,medium
+5,Kata Heian Shodan,Run through full kata — focus on transitions and stances,1200,medium
+6,Kata Heian Nidan,Full run-through with attention to timing and kiai,1200,hard
+7,Combination Drills,Three-step punch and kick combinations with a partner,1200,hard
+8,Sparring Drills,Controlled sparring — focus on defense and counter-attacks,1800,hard
+9,Kata Bassai Dai,Advanced kata — full run-through with focus on power and precision,1800,expert
+10,Free Sparring,Full free sparring session with multiple partners,2400,expert
+11,Cool Down Stretches,Static stretching and breathing exercises to finish,300,easy

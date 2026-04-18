@@ -1,291 +1,255 @@
 # 🥋 Karate Task Tracker
 
-A web application designed specifically for students in my private class that I'm work with on on one.
-
-## Features
-
-### Backend (FastAPI + SQLite)
-- ✅ FastAPI web framework for high performance
-- ✅ SQLite database for persistent storage
-- ✅ Safe CSV cleaning to prevent injection attacks
-- ✅ Difficulty weighting based on estimated time
-- ✅ Focus score calculation (estimated vs actual time)
-- ✅ Impact score combining difficulty and focus
-- ✅ Student progress tracking over time
-- ✅ Active session management
-- ✅ Streak tracking for daily consistency
-
-### Frontend (Jinja2 Templates + Vanilla JS)
-- ✅ Clean, colorful UI with large tap targets
-- ✅ Highlighted active task cards
-- ✅ Big, accessible buttons for Start/Finish
-- ✅ Live timer display when task is active
-- ✅ Confetti animation on task completion
-- ✅ Complete button outputs total time and scores
-- ✅ Dashboard with live results
-- ✅ Responsive design for mobile and desktop
-
-### Special Features for Autistic Students
-- 🎯 Clear visual hierarchy
-- 🎨 High contrast colors
-- 📊 Progress visualization
-- 🎉 Positive reinforcement (confetti!)
-- ⏱️ Time awareness with live timer
-- 🔥 Streak tracking for motivation
-- 📈 Achievement badges
-- 🎮 Gamification elements
-
-## Quick Start
-
-### Using Docker (Recommended)
-
-1. **Build and run with Docker Compose:**
-```bash
-docker-compose up --build
-```
-
-2. **Access the application:**
-Open your browser to `http://localhost:8000`
-
-**Your data persists automatically!** The database is stored in `./data/karate_tracker.db` on your computer, not inside the Docker container. This means your data survives container restarts, rebuilds, and updates.
-
-### Manual Installation
-
-1. **Install dependencies:**
-```bash
-pip install -r requirements.txt
-```
-
-2. **Run the application:**
-```bash
-python main.py
-```
-
-3. **Access the application:**
-Open your browser to `http://localhost:8000`
-
-## Usage Guide
-
-### 1. Student Registration
-- Enter your name on the home page
-- Click "Start Training!" to create your profile
-- Returning students can click their name to continue
-
-### 2. Upload Tasks
-- Prepare a CSV file with three columns:
-  - `task`: Name of the task
-  - `description`: Brief description (optional)
-  - `estimated_time`: Time in minutes
-
-Example CSV:
-```csv
-task,description,estimated_time
-Warm-up Stretches,Leg and arm stretches before training,10
-Basic Kata Practice,Practice first 3 katas,20
-Punching Drills,50 punches with proper form,15
-Kicking Drills,Side kicks and front kicks,20
-Cool Down,Breathing exercises and stretches,10
-```
-
-- Click "Upload Tasks" and select your CSV file
-
-### 3. Complete Tasks
-- Click "🚀 Start" on any task to begin
-- The timer will start automatically
-- Complete your task
-- Click "✅ Finished!" when done
-- Enjoy the confetti celebration! 🎉
-
-### 4. View Progress
-- Click "📊 View Results" to see your history
-- Track your total time, focus scores, and streak
-- See all completed tasks with detailed metrics
-
-## Scoring System
-
-### Focus Score (0.0 - 1.0)
-- Measures how well you stayed on track
-- Based on estimated vs actual time
-- Higher score = better time management
-
-### Impact Score (0.0 - 10.0)
-- Combines difficulty and focus
-- Weighted average: 40% difficulty, 60% focus
-- Higher score = bigger achievement!
-
-### Difficulty Weight
-- Easy (🟢): 0-5 minutes = 0.5x
-- Medium (🟡): 6-15 minutes = 1.0x
-- Hard (🟠): 16-30 minutes = 1.5x
-- Expert (🔴): 30+ minutes = 2.0x
-
-### Streak System
-- Complete tasks daily to build your streak
-- Each consecutive day adds to your streak
-- Display shows 🔥 with your current streak
-
-## Project Structure
-
-```
-karate-tracker/
-├── main.py                 # FastAPI application
-├── requirements.txt        # Python dependencies
-├── Dockerfile             # Docker configuration
-├── docker-compose.yml     # Docker Compose setup
-├── README.md              # This file
-├── DATA_PERSISTENCE.md    # Data backup and persistence guide
-├── static/
-│   └── style.css          # Stylesheet
-├── templates/
-│   ├── index.html         # Home page
-│   ├── dashboard.html     # Task dashboard
-│   └── results.html       # Results page
-└── data/                  # Database storage (persists outside container)
-    └── karate_tracker.db  # SQLite database (created on first run)
-```
-
-## Data Persistence
-
-**Your data is automatically saved!** 
-
-- Database location: `./data/karate_tracker.db`
-- Survives container restarts: ✅
-- Survives container rebuilds: ✅
-- Survives code updates: ✅
-
-**Backup your data:**
-```bash
-cp -r data data_backup_$(date +%Y%m%d)
-```
-
-**Restore from backup:**
-```bash
-docker-compose down
-cp -r data_backup_20240130 data
-docker-compose up -d
-```
-
-See [DATA_PERSISTENCE.md](DATA_PERSISTENCE.md) for complete backup and restore guide.
-
-## Database Schema
-
-### Students Table
-- id: Primary key
-- name: Student name
-- created_at: Registration timestamp
-
-### Tasks Table
-- id: Primary key
-- title: Task name
-- description: Task description
-- estimated_time: Expected duration in minutes
-- difficulty_weight: Calculated difficulty (0.5 - 2.0)
-- created_at: Creation timestamp
-
-### Task Completions Table
-- id: Primary key
-- student_id: Foreign key to students
-- task_id: Foreign key to tasks
-- start_time: When task started
-- end_time: When task finished
-- actual_time: Duration in seconds
-- focus_score: Performance metric (0.0 - 1.0)
-- impact_score: Achievement metric (0.0 - 10.0)
-- completed_at: Completion timestamp
-
-### Active Sessions Table
-- id: Primary key
-- student_id: Foreign key to students
-- task_id: Foreign key to tasks
-- start_time: Session start time
-
-## API Endpoints
-
-### Frontend Routes
-- `GET /` - Home page
-- `GET /student/{student_id}` - Student dashboard
-- `GET /results/{student_id}` - Results page
-
-### API Routes
-- `POST /student/create` - Create new student
-- `POST /upload-tasks/{student_id}` - Upload CSV tasks
-- `POST /task/start/{student_id}/{task_id}` - Start a task
-- `POST /task/finish/{student_id}` - Finish active task
-- `GET /api/session-status/{student_id}` - Check active session
-
-## Customization
-
-### Colors and Themes
-Edit `static/style.css` to change:
-- Gradient backgrounds
-- Button colors
-- Card styles
-- Font sizes
-
-### Difficulty Levels
-Modify `calculate_difficulty_weight()` in `main.py` to adjust:
-- Time thresholds
-- Weight multipliers
-
-### Scoring Algorithm
-Adjust `calculate_focus_score()` and `calculate_impact_score()` in `main.py` for different scoring logic.
-
-## Troubleshooting
-
-### Database Issues
-```bash
-# Reset database
-rm karate_tracker.db
-python main.py  # Will recreate database
-```
-
-### Port Already in Use
-```bash
-# Change port in docker-compose.yml or run manually:
-uvicorn main:app --host 0.0.0.0 --port 8001
-```
-
-### CSV Upload Fails
-- Ensure CSV has headers: `task`, `description`, `estimated_time`
-- Check file encoding is UTF-8
-- Verify no special characters in task names
-
-## Development
-
-### Running in Development Mode
-```bash
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
-```
-
-### Building Docker Image
-```bash
-docker build -t karate-tracker .
-docker run -p 8000:8000 karate-tracker
-```
-
-## Safety Features
-
-1. **CSV Sanitization**: All CSV input is cleaned to prevent injection
-2. **Input Validation**: Names and tasks are validated before storage
-3. **SQL Injection Prevention**: Uses parameterized queries
-4. **Session Management**: One active task per student
-5. **Error Handling**: Graceful error messages
-
-## License
-
-This project is open source and available for educational purposes.
-
-## Credits
-
-Built with:
-- FastAPI
-- SQLite
-- Jinja2
-- Canvas Confetti
-- Modern CSS3
-
-Designed for accessibility and ease of use for neurodivergent learners.
+A web-based training task tracker built with FastAPI and SQLite. Students log in by name, upload a CSV task list, run timed drills, and review focus and impact scores.
 
 ---
 
-Made with ❤️ for karate students everywhere! 🥋
+## 🚀 Getting Started
+
+### Requirements
+- Python 3.9+
+- FastAPI, Uvicorn, Jinja2, python-multipart
+
+### Install & Run
+```bash
+pip install fastapi uvicorn jinja2 python-multipart
+mkdir -p data
+uvicorn main:app --reload
+```
+
+The app runs at `http://localhost:8000` by default.
+
+### Environment Variables
+| Variable | Default | Description |
+|---|---|---|
+| `DATABASE_PATH` | `data/karate_tracker.db` | Path to the SQLite database file |
+| `LOG_ENABLED` | `false` | Set to `true` to enable file logging |
+| `LOG_LEVEL` | `INFO` | Log level: DEBUG, INFO, WARNING, ERROR |
+| `LOG_PATH` | `/var/log` | Directory for `karate_tracker.log` |
+
+---
+
+## 📁 File Structure
+
+```
+main.py                  # FastAPI backend
+templates/
+  index.html             # Home / login page
+  dashboard.html         # Student task dashboard
+  results.html           # Completion history & scores
+  edit_task.html         # Edit a single task
+  users.html             # Admin: all users, import/export
+static/
+  style.css              # Shared stylesheet
+data/
+  karate_tracker.db      # SQLite database (auto-created)
+```
+
+---
+
+## 📄 CSV Format
+
+Tasks are loaded from a CSV file with the following columns:
+
+```
+taskid,task,description,estimated_time,difficulty
+1,Front Kick,Practice front kick technique,600,easy
+2,Roundhouse Kick,Focus on hip rotation,900,medium
+3,Kata Heian Shodan,Full kata run-throughs,1200,hard
+4,Sparring Drills,Partner sparring combos,1800,expert
+5,Cool Down Stretches,,300,
+```
+
+| Column | Required | Description |
+|---|---|---|
+| `taskid` | Recommended | Unique integer. Sets display order and is used to match tasks across uploads. |
+| `task` | ✅ Yes | Task name (must be at least 2 characters). |
+| `description` | No | Optional detail shown under the task name. |
+| `estimated_time` | No | Time in **seconds**. Set to `0` for no countdown. Defaults to 900 if blank. |
+| `difficulty` | No | `easy`, `medium`, `hard`, or `expert`. Auto-assigned by time if blank. |
+
+### Difficulty Auto-Assignment (when blank)
+| Estimated Time | Difficulty | Weight |
+|---|---|---|
+| Under 5 min (< 300s) | 🟢 Easy | 0.5 |
+| 5–15 min (300–900s) | 🟡 Medium | 1.0 |
+| 15–30 min (900–1800s) | 🟠 Hard | 1.5 |
+| Over 30 min (> 1800s) | 🔴 Expert | 2.0 |
+
+---
+
+## 🕹️ Using the App
+
+### Logging In
+Enter your name on the home page and click **Start Training! 🚀**
+
+- Names are **case-insensitive** and stored in title case (`john doe` → `John Doe`)
+- If the name already exists, you go straight to your dashboard
+- If the name is new, an account is created and you'll be prompted to upload a CSV
+
+### Running Tasks
+1. Upload your CSV — tasks appear in `taskid` order
+2. Click **🚀 Start** on any task, or **▶️ Begin All Tasks** to run them in sequence
+3. The timer counts down from the estimated time
+4. When it hits zero, a sound plays and it counts **up** in red (overtime)
+5. Click **✅ Finished!** when done — time is recorded and the next task starts automatically
+
+### No-Countdown Tasks
+Set `estimated_time` to `0` in your CSV or edit form. No timer is shown — just click Finished when ready.
+
+---
+
+## ⌨️ Keyboard Shortcuts
+
+| Key | Action |
+|---|---|
+| `Enter` | Click Finished (when task is active and not paused) |
+| `Space` | Same as Enter |
+| `P` | Pause / Resume the active task timer |
+
+> Shortcuts are disabled when typing in a text field, textarea, or dropdown.
+
+---
+
+## ☰ Hamburger Menu Reference
+
+Open the menu with the **☰** button in the top-right corner of the dashboard.
+
+Items marked 🔒 require the **admin password** (default: `admin`). The password is remembered for the rest of the browser session once entered.
+
+### Navigation
+| Item | Password | Description |
+|---|---|---|
+| 📊 View Results | No | Opens completion history with scores and totals |
+| ⬇️ Download My CSV | No | Downloads current task list as a CSV |
+| 💾 Export My Data | No | Downloads full JSON backup (tasks + completion history) |
+| 🏠 Home | No | Returns to the login page |
+| 👥 All Users | No | Admin view: all students, per-user export, data import |
+
+### Task Controls
+| Item | Password | Description |
+|---|---|---|
+| ⏸️ Pause | No | Freezes/resumes the timer. Also: keyboard **P** |
+| ❌ Cancel Task | No | Records task as incomplete, advances to next task |
+| 📋 Upload New CSV | 🔒 Yes | Replaces entire task list; archives old tasks; clears session |
+| ➕ Add a Task | 🔒 Yes | Merges additional CSV into existing task list |
+| ✏️ Modify a Task | 🔒 Yes | Edit title, description, time, or difficulty of a task |
+| 🗑️ Remove a Task | 🔒 Yes | Permanently delete a task from the list |
+
+### Danger Zone
+| Item | Password | Description |
+|---|---|---|
+| 🔄 Reset Session | 🔒 Yes | Cancels the active task session. History and tasks are kept. |
+| 🧹 Clear Session | 🔒 Yes | Same as Reset Session |
+| 🗑️ Clear All Data for User | 🔒 Yes | Deletes the account, all tasks, and all history. **Cannot be undone.** |
+
+### Sound
+| Item | Description |
+|---|---|
+| 🔔 Sound ▸ | Hover to expand. Options: No Sound (default), Ding, Chime, Bell. Saved across sessions via localStorage. |
+
+---
+
+## 📊 Scores Explained
+
+### Focus Score (0.0 – 1.0)
+Measures how closely you matched the estimated time.
+
+- Finish exactly on time → **1.0** (perfect)
+- Finish early → slightly below 1.0
+- Run over time → decreases toward 0.1
+- Tasks with `estimated_time = 0` always score **1.0**
+
+### Impact Score (0 – 10)
+`impact = (difficulty_weight × 0.4 + focus_score × 0.6) × 10`
+
+| Difficulty | Perfect Focus Score | Max Impact |
+|---|---|---|
+| 🟢 Easy (0.5) | 1.0 | 5.0 |
+| 🟡 Medium (1.0) | 1.0 | 10.0... wait |
+
+Actually the formula: `(0.4 × weight + 0.6 × focus) × 10`
+
+| Difficulty | Weight | Max Impact |
+|---|---|---|
+| 🟢 Easy | 0.5 | (0.4×0.5 + 0.6×1.0)×10 = **8.0** |
+| 🟡 Medium | 1.0 | (0.4×1.0 + 0.6×1.0)×10 = **10.0** |
+| 🟠 Hard | 1.5 | (0.4×1.5 + 0.6×1.0)×10 = **12.0** |
+| 🔴 Expert | 2.0 | (0.4×2.0 + 0.6×1.0)×10 = **14.0** |
+
+### Result Badges
+| Badge | Meaning |
+|---|---|
+| 🌟 Finished Early | Completed under the estimated time |
+| ⏱️ Time to Complete | Completed but took longer than estimated |
+| ❌ Incomplete | Cancelled — time recorded, marked incomplete |
+
+---
+
+## 👥 All Users Page (`/users`)
+
+Accessible from the hamburger menu. Shows all registered students with:
+- Task count and completion count
+- Links to each student's dashboard and results
+- Per-user **⬇️ Export** (JSON)
+- Global **⬇️ Export All Users** (single JSON with everyone)
+- **📥 Import Session Data** — upload a JSON export to restore one or more users
+
+### Import / Export Format
+Exports are self-contained JSON files. They can be used to:
+- Back up a student's data before clearing
+- Move data between servers
+- Restore after a database reset
+
+Tasks are matched by `csv_task_id` first, then by title, so history links up correctly even if the database IDs change.
+
+---
+
+## 🔒 Admin Password
+
+The default password is **`admin`**.
+
+Protected actions: Add a Task, Modify a Task, Remove a Task, Upload New CSV, Reset Session, Clear Session, Clear All Data for User.
+
+The password is checked client-side and remembered for the browser session. To change it, update the string `'admin'` in `adminAuth()` in `dashboard.html`.
+
+---
+
+## 🗄️ Database Schema
+
+| Table | Key Columns |
+|---|---|
+| `students` | `id`, `name` (unique, case-insensitive), `created_at` |
+| `tasks` | `id`, `student_id`, `title`, `description`, `estimated_time`, `difficulty_weight`, `archived`, `task_order`, `csv_task_id` |
+| `task_completions` | `id`, `student_id`, `task_id`, `actual_time`, `focus_score`, `impact_score`, `completed` (1=done, 0=cancelled) |
+| `active_sessions` | `id`, `student_id`, `task_id`, `start_time` |
+
+The database is auto-created on first run. Migrations for new columns run automatically on startup.
+
+---
+
+## 🔗 API Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/` | Home / login page |
+| POST | `/student/create` | Find or create student by name |
+| GET | `/student/{id}` | Dashboard |
+| GET | `/results/{id}` | Results page |
+| GET | `/users` | All users admin page |
+| POST | `/upload-tasks/{id}` | Merge CSV into task list |
+| POST | `/upload-tasks/overwrite/{id}` | Replace task list with new CSV |
+| GET | `/tasks/export/{id}` | Download task list as CSV |
+| POST | `/tasks/archive-all/{id}` | Archive all active tasks |
+| GET | `/export/user/{id}` | Download full JSON export for one user |
+| GET | `/export/all` | Download JSON export for all users |
+| POST | `/import/data` | Import JSON export file |
+| POST | `/task/start/{sid}/{tid}` | Start a task |
+| POST | `/task/finish/{sid}` | Finish a task (complete) |
+| POST | `/task/abandon/{sid}` | Finish a task (incomplete/cancelled) |
+| POST | `/task/cancel/{sid}` | Cancel without recording |
+| GET | `/task/{tid}/edit` | Edit task form |
+| POST | `/task/{tid}/update` | Save task edits |
+| DELETE | `/task/{tid}` | Delete a task |
+| POST | `/student/{id}/reset` | Clear active session |
+| POST | `/tasks/clear` | Delete all user data and account |

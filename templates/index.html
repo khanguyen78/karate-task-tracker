@@ -185,8 +185,8 @@
             <div class="collapsible-body open" id="csv-section">
                 <ol class="steps">
                     <li>Open any spreadsheet app (Excel, Google Sheets, Numbers) or a plain text editor like Notepad.</li>
-                    <li>Add the header row exactly as: <strong>task, description, estimated_time, difficulty</strong></li>
-                    <li>Fill in one task per row. The <strong>estimated_time</strong> column is in <strong>seconds</strong>. Description is optional. <strong>difficulty</strong> accepts: <em>easy, medium, hard, expert</em> — leave blank to auto-assign based on time.</li>
+                    <li>Add the header row exactly as: <strong>taskid, task, description, estimated_time, difficulty</strong></li>
+                    <li>Fill in one task per row. <strong>taskid</strong> is a unique number that sets the order and is used to match tasks across uploads. <strong>estimated_time</strong> is in seconds. <strong>difficulty</strong> accepts: <em>easy, medium, hard, expert</em> — leave blank to auto-assign based on time.</li>
                     <li>Export the file as <strong>.csv</strong>:
                         <ul class="sub-steps">
                             <li><strong>Excel:</strong> File → Save As → CSV</li>
@@ -199,12 +199,12 @@
 
                 <h3>📋 Format &amp; Example</h3>
                 <div class="csv-example">
-<span class="csv-header">task,description,estimated_time,difficulty</span>
-<span class="csv-row">Front Kick,Practice front kick technique,600,easy</span>
-<span class="csv-row">Roundhouse Kick,Focus on hip rotation,900,medium</span>
-<span class="csv-row">Kata Heian Shodan,Full kata run-throughs,1200,hard</span>
-<span class="csv-row">Sparring Drills,Partner sparring combos,1800,expert</span>
-<span class="csv-row">Cool Down Stretches,,300,</span>
+<span class="csv-header">taskid,task,description,estimated_time,difficulty</span>
+<span class="csv-row">1,Front Kick,Practice front kick technique,600,easy</span>
+<span class="csv-row">2,Roundhouse Kick,Focus on hip rotation,900,medium</span>
+<span class="csv-row">3,Kata Heian Shodan,Full kata run-throughs,1200,hard</span>
+<span class="csv-row">4,Sparring Drills,Partner sparring combos,1800,expert</span>
+<span class="csv-row">5,Cool Down Stretches,,300,</span>
                 </div>
                 <p class="note">⚠️ The header row must be included. If you skip the description, keep the comma: <code>Cool Down,,5</code></p>
                 <p class="note">💡 Each student's CSV is private — uploading only adds tasks to your own account, not anyone else's.</p>
@@ -214,7 +214,7 @@
         <!-- Button Guide -->
         <div class="card">
             <div class="collapsible-header open" onclick="toggleSection('btn-section', this)">
-                <h2 style="margin:0">🕹️ Button Guide</h2>
+                <h2 style="margin:0">🕹️ Button Guide &amp; Feature Reference</h2>
                 <span class="toggle-icon">▼</span>
             </div>
             <div class="collapsible-body open" id="btn-section">
@@ -225,11 +225,15 @@
                         <ul class="button-guide">
                             <li>
                                 <span class="btn-label primary">Upload Tasks 📤</span>
-                                <span>Shown when you have no tasks yet. Select your CSV file to load your task list.</span>
+                                <span>Shown when you have no tasks yet. Select your CSV to load your task list.</span>
                             </li>
                             <li>
-                                <span class="btn-label">+ Add More Tasks</span>
-                                <span>Adds tasks from another CSV on top of your existing list — useful for adding new drills without losing your current ones.</span>
+                                <span class="btn-label">➕ Add a Task <span style="color:#e67e22">🔒</span></span>
+                                <span>Merges an additional CSV into your existing task list. Tasks matched by taskid or title are updated; new ones are added; tasks not in the CSV are archived.</span>
+                            </li>
+                            <li>
+                                <span class="btn-label">📋 Upload New CSV <span style="color:#e67e22">🔒</span></span>
+                                <span>Replaces your current task list with a new CSV. Old tasks are archived (history preserved), session is cleared. Tasks matched by taskid or title keep their history.</span>
                             </li>
                         </ul>
 
@@ -237,69 +241,96 @@
                         <ul class="button-guide">
                             <li>
                                 <span class="btn-label primary">▶️ Begin All Tasks</span>
-                                <span>Runs all tasks back-to-back automatically. Each task runs for its estimated time then advances to the next.</span>
+                                <span>Starts all tasks in order, one after another. After finishing each task the next begins automatically.</span>
                             </li>
                             <li>
                                 <span class="btn-label primary">🚀 Start</span>
-                                <span>Starts the timer for a single task. Only one task can run at a time.</span>
+                                <span>Starts the timer for a single task. Only one task can be active at a time.</span>
                             </li>
                             <li>
                                 <span class="btn-label success">✅ Finished!</span>
-                                <span>Completes the active task, records your time, and calculates your focus and impact scores.</span>
+                                <span>Marks the active task complete, records your time, calculates focus and impact scores, and advances to the next task. <strong>Keyboard: Enter or Space</strong></span>
+                            </li>
+                            <li>
+                                <span class="btn-label">⏸️ Pause</span>
+                                <span>Freezes the timer exactly where it is. The Finished button changes to "▶️ Paused — tap to resume". Click it again to continue. <strong>Keyboard: P</strong></span>
                             </li>
                             <li>
                                 <span class="btn-label warning">❌ Cancel Task</span>
-                                <span>Stops the current task without saving any progress for it.</span>
+                                <span>Stops the current task, records the time spent as <strong>incomplete</strong>, and advances to the next task. No confirmation prompt.</span>
+                            </li>
+                        </ul>
+
+                        <h3 class="section-sub-title">⏱️ Timer Behaviour</h3>
+                        <ul class="button-guide">
+                            <li>
+                                <span class="btn-label">Countdown</span>
+                                <span>While time remains, the timer counts down in seconds. Progress bar shows % complete.</span>
+                            </li>
+                            <li>
+                                <span class="btn-label">Count-up (overtime)</span>
+                                <span>When the countdown reaches zero, a sound plays and the timer switches to counting up in red (+1s, +2s…). Click Finished whenever you're done — the full time is recorded.</span>
+                            </li>
+                            <li>
+                                <span class="btn-label">No Countdown</span>
+                                <span>Set <strong>estimated_time</strong> to 0 in your CSV or edit form. No timer is shown — just click Finished to move on.</span>
                             </li>
                         </ul>
                     </div>
 
                     <div class="instruction-section">
-                        <h3>📊 Navigation</h3>
+                        <h3>☰ Hamburger Menu</h3>
+                        <p style="font-size:0.9rem;color:#666;margin:0 0 8px 0">Items marked 🔒 require the admin password.</p>
                         <ul class="button-guide">
-                            <li>
-                                <span class="btn-label">📊 View Results</span>
-                                <span>Opens your results page showing all completed tasks, focus scores, impact scores, and total training time.</span>
-                            </li>
-                            <li>
-                                <span class="btn-label">🏠 Home</span>
-                                <span>Returns to this page so a different student can log in.</span>
-                            </li>
+                            <li><span class="btn-label">📊 View Results</span><span>Opens your full results page with completion history, scores, and totals.</span></li>
+                            <li><span class="btn-label">⬇️ Download My CSV</span><span>Downloads your current active task list as a CSV file (taskid, task, description, estimated_time, difficulty).</span></li>
+                            <li><span class="btn-label">💾 Export My Data</span><span>Downloads a full JSON backup of your tasks and completion history — use this to restore or migrate your data.</span></li>
+                            <li><span class="btn-label">🏠 Home</span><span>Returns to the login page.</span></li>
+                            <li><span class="btn-label">👥 All Users</span><span>Shows all students with task counts, results links, per-user export, and a global import tool.</span></li>
+                            <li><span class="btn-label">⏸️ Pause</span><span>Pauses/resumes the active task timer. Also triggered by keyboard shortcut <strong>P</strong>.</span></li>
+                            <li><span class="btn-label warning">❌ Cancel Task</span><span>Records current task as incomplete and moves to the next.</span></li>
+                            <li><span class="btn-label">📋 Upload New CSV <span style="color:#e67e22">🔒</span></span><span>Replace entire task list with a new CSV. History is preserved.</span></li>
+                            <li><span class="btn-label">➕ Add a Task <span style="color:#e67e22">🔒</span></span><span>Merge an additional CSV into your existing list.</span></li>
+                            <li><span class="btn-label">✏️ Modify a Task <span style="color:#e67e22">🔒</span></span><span>Pick a task to edit its title, description, time, or difficulty.</span></li>
+                            <li><span class="btn-label">🗑️ Remove a Task <span style="color:#e67e22">🔒</span></span><span>Pick a task to permanently delete it from the list.</span></li>
+                            <li><span class="btn-label warning">🔄 Reset Session <span style="color:#e67e22">🔒</span></span><span>Cancels the currently active task session. Task list and history are untouched.</span></li>
+                            <li><span class="btn-label warning">🧹 Clear Session <span style="color:#e67e22">🔒</span></span><span>Same as Reset Session — clears the active session and reloads.</span></li>
+                            <li><span class="btn-label warning">🗑️ Clear All Data for User <span style="color:#e67e22">🔒</span></span><span>Permanently deletes the student account, all tasks, and all history. Cannot be undone.</span></li>
+                            <li><span class="btn-label">🔔 Sound ▸</span><span>Hover to expand sound options: No Sound, Ding, Chime, Bell. Your choice is saved across sessions.</span></li>
                         </ul>
 
-                        <h3 class="section-sub-title">⚙️ Managing Tasks</h3>
+                        <h3 class="section-sub-title">⌨️ Keyboard Shortcuts</h3>
                         <ul class="button-guide">
-                            <li>
-                                <span class="btn-label">✏️ Edit</span>
-                                <span>Edit a task's title, description, estimated time, or difficulty.</span>
-                            </li>
-                            <li>
-                                <span class="btn-label warning">🧹 Clear Session</span>
-                                <span>Clears only the currently active task session. Your task list and completion history are kept.</span>
-                            </li>
-                            <li>
-                                <span class="btn-label warning">🔄 Reset Session</span>
-                                <span>Cancels the active task session and reloads the page. Keeps your task list and history.</span>
-                            </li>
-                            <li>
-                                <span class="btn-label warning">🗑️ Clear All Data for User</span>
-                                <span>Permanently deletes the student account, all tasks, and all history. Cannot be undone.</span>
-                            </li>
+                            <li><span class="btn-label">Enter</span><span>Click the Finished button (when a task is active and not paused).</span></li>
+                            <li><span class="btn-label">Space</span><span>Same as Enter — click Finished.</span></li>
+                            <li><span class="btn-label">P</span><span>Pause or resume the active task timer.</span></li>
                         </ul>
 
                         <h3 class="section-sub-title">📈 Scores Explained</h3>
                         <ul class="button-guide">
                             <li>
                                 <span class="btn-label">Focus Score</span>
-                                <span>How closely your actual time matched the estimated time. 1.0 is perfect; finishing early or running significantly over both lower your score.</span>
+                                <span>How closely you matched the estimated time. 1.0 = perfect. Finishing early or running significantly over both lower the score. Tasks with no countdown always score 1.0.</span>
                             </li>
                             <li>
                                 <span class="btn-label">Impact Score</span>
-                                <span>A combined score (0–10) based on task difficulty and your focus score. An Expert task done with perfect focus scores 10; an Easy task maxes at 2.5.</span>
+                                <span>Combined score (0–10) based on difficulty × focus. Expert + perfect focus = 10. Easy + perfect focus = 2.5.</span>
                             </li>
                             <li>
                                 <span class="btn-label">Difficulty</span>
-                                <span>Set manually in your CSV or via the Edit form. Four levels: 🟢 <strong>Easy</strong> (weight 0.5), 🟡 <strong>Medium</strong> (weight 1.0), 🟠 <strong>Hard</strong> (weight 1.5), 🔴 <strong>Expert</strong> (weight 2.0). If left blank, difficulty is auto-assigned by estimated time: under 5 min → Easy, 5–15 min → Medium, 15–30 min → Hard, over 30 min → Expert.</span>
+                                <span>Set in CSV or Edit form. 🟢 <strong>Easy</strong> (0.5), 🟡 <strong>Medium</strong> (1.0), 🟠 <strong>Hard</strong> (1.5), 🔴 <strong>Expert</strong> (2.0). Auto-assigned by time if blank: &lt;5min→Easy, 5–15min→Medium, 15–30min→Hard, &gt;30min→Expert.</span>
+                            </li>
+                            <li>
+                                <span class="btn-label">🌟 Finished Early</span>
+                                <span>Green badge shown when a completed task was finished under the estimated time.</span>
+                            </li>
+                            <li>
+                                <span class="btn-label">⏱️ Time to Complete</span>
+                                <span>Yellow badge shown when a task was completed but took longer than estimated.</span>
+                            </li>
+                            <li>
+                                <span class="btn-label">❌ Incomplete</span>
+                                <span>Red badge shown when a task was cancelled before finishing. Time is still recorded.</span>
                             </li>
                         </ul>
                     </div>
