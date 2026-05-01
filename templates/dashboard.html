@@ -432,7 +432,7 @@
             } catch (e) { /* audio not supported */ }
         }
 
-        let autoAdvance = localStorage.getItem('karateAutoAdvance') === 'true';
+        let autoAdvance = localStorage.getItem('karateAutoAdvance') !== 'false';
 
         function toggleAutoAdvance() {
             autoAdvance = !autoAdvance;
@@ -895,7 +895,7 @@
             document.getElementById('menuOverlay').classList.remove('open');
             document.getElementById('menuBtn').textContent = '☰';
         }
-        // Keyboard shortcuts: Enter/Space = Finished, P = Pause
+        // Keyboard shortcuts: Enter/Space = Finished, P = Pause, A = Toggle Auto-Advance
         document.addEventListener('keydown', function(e) {
             // Ignore if typing in an input or textarea
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
@@ -906,6 +906,9 @@
             }
             if ((e.key === 'p' || e.key === 'P') && !e.repeat) {
                 pauseTask();
+            }
+            if ((e.key === 'a' || e.key === 'A') && !e.repeat) {
+                toggleAutoAdvance();
             }
         });
 

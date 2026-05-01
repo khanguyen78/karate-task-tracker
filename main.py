@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from fastapi import FastAPI, Request, Form, UploadFile, File, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -59,11 +60,11 @@ if LOG_ENABLED:
         )
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
-        logger.info(f"Logging initialized — level={LOG_LEVEL_STR}, file={log_file}")
+        logger.info("Logging initialized — level={}, file={}".format(LOG_LEVEL_STR, log_file))
     except PermissionError:
         logging.basicConfig(level=LOG_LEVEL)
         logger.warning(
-            f"Cannot write to {log_file} (permission denied). Falling back to stderr."
+            "Cannot write to {} (permission denied). Falling back to stderr.".format(log_file)
         )
 else:
     logger.addHandler(logging.NullHandler())
@@ -96,7 +97,7 @@ def init_db():
         ("csv_task_id", "TEXT"),
     ]:
         try:
-            c.execute(f"ALTER TABLE tasks ADD COLUMN {col} {definition}")
+            c.execute("ALTER TABLE tasks ADD COLUMN {} {}".format(col, definition))
         except Exception:
             pass
     
@@ -144,13 +145,13 @@ def migrate_db():
 init_db()
 migrate_db()
 
-def clean_csv_value(value: str) -> str:
+def clean_csv_value(value):
     if not value:
         return ""
     cleaned = value.strip().replace('\n', ' ').replace('\r', '')
     return cleaned[:500]
 
-def calculate_difficulty_weight(estimated_time: int) -> float:
+def calculate_difficulty_weight(estimated_time):
     """estimated_time is in seconds"""
     if estimated_time <= 300:
         return 0.5
@@ -166,7 +167,7 @@ DIFFICULTY_MAP = {
     '0.5': 0.5, '1.0': 1.0, '1.5': 1.5, '2.0': 2.0,
 }
 
-def parse_difficulty(value: str, estimated_time: int) -> float:
+def parse_difficulty(value, estimated_time):
     """Parse difficulty from CSV field, fall back to time-based if blank/invalid."""
     if not value:
         return calculate_difficulty_weight(estimated_time)
@@ -175,7 +176,7 @@ def parse_difficulty(value: str, estimated_time: int) -> float:
         return DIFFICULTY_MAP[normalized]
     return calculate_difficulty_weight(estimated_time)
 
-def calculate_focus_score(estimated: int, actual: int) -> float:
+def calculate_focus_score(estimated, actual):
     if estimated == 0:
         return 1.0
     ratio = actual / estimated
@@ -184,10 +185,10 @@ def calculate_focus_score(estimated: int, actual: int) -> float:
     else:
         return max(0.1, 1.0 / ratio)
 
-def calculate_impact_score(difficulty: float, focus: float) -> float:
+def calculate_impact_score(difficulty, focus):
     return (difficulty * 0.4 + focus * 0.6) * 10
 
-def get_student_streak(student_id: int) -> int:
+def get_student_streak(student_id):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     
@@ -277,11 +278,11 @@ async def export_user_data(student_id: int):
         "completions": completions
     }
 
-    filename = f"{student[1].replace(' ', '_')}_session_data.json"
+    filename = "{}_session_data.json".format(student[1].replace(' ', '_'))
     return Response(
         content=json.dumps(data, indent=2),
         media_type="application/json",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
+        headers={"Content-Disposition": "attachment; filename={}".format(filename)}
     )
 
 @app.get("/export/all")
@@ -371,7 +372,7 @@ async def import_user_data(file: UploadFile = File(...)):
 
     conn.commit()
     conn.close()
-    logger.info(f"Imported data for: {', '.join(imported)}")
+    logger.info("Imported data for: {}".format(', '.join(imported)))
     return {"success": True, "imported": imported}
 
 @app.post("/student/create")
@@ -389,19 +390,19 @@ async def create_student(name: str = Form(...)):
 
     if existing:
         student_id = existing[0]
-        logger.debug(f"Student '{name}' matched existing '{existing[1]}' (id={student_id}), redirecting")
+        logger.debug("Student '{}' matched existing '{}' (id={}), redirecting".format(name, existing[1], student_id))
     else:
         try:
             c.execute("INSERT INTO students (name) VALUES (?)", (name,))
             conn.commit()
             student_id = c.lastrowid
-            logger.info(f"New student created: '{name}' (id={student_id})")
+            logger.info("New student created: '{}' (id={})".format(name, student_id))
         except sqlite3.IntegrityError:
             c.execute("SELECT id FROM students WHERE name = ? COLLATE NOCASE", (name,))
             student_id = c.fetchone()[0]
 
     conn.close()
-    return RedirectResponse(f"/student/{student_id}", status_code=303)
+    return RedirectResponse("/student/{}".format(student_id), status_code=303)
 
 @app.get("/student/{student_id}", response_class=HTMLResponse)
 async def student_dashboard(request: Request, student_id: int):
@@ -412,10 +413,10 @@ async def student_dashboard(request: Request, student_id: int):
     student = c.fetchone()
     if not student:
         conn.close()
-        logger.warning(f"Dashboard requested for unknown student_id={student_id}")
+        logger.warning("Dashboard requested for unknown student_id={}".format(student_id))
         raise HTTPException(404, "Student not found")
     
-    logger.debug(f"Dashboard loaded for student '{student[0]}' (id={student_id})")
+    logger.debug("Dashboard loaded for student '{}' (id={})".format(student[0], student_id))
     
     c.execute("SELECT id, title, description, estimated_time, difficulty_weight FROM tasks WHERE student_id = ? AND archived = 0 ORDER BY task_order ASC, id ASC", (student_id,))
     tasks = [{"id": row[0], "title": row[1], "description": row[2], 
@@ -453,7 +454,7 @@ async def student_dashboard(request: Request, student_id: int):
         "streak": streak
     })
 
-def _parse_csv(contents: bytes) -> list:
+def _parse_csv(contents):
     """Parse CSV bytes into a list of task dicts with taskid, order, title, etc."""
     csv_file = io.StringIO(contents.decode('utf-8'))
     reader = csv.DictReader(csv_file)
@@ -489,10 +490,10 @@ def _parse_csv(contents: bytes) -> list:
 @app.post("/upload-tasks/{student_id}")
 async def upload_tasks(student_id: int, file: UploadFile = File(...)):
     if not file.filename.endswith('.csv'):
-        logger.warning(f"Student {student_id} attempted to upload non-CSV file: {file.filename}")
+        logger.warning("Student {} attempted to upload non-CSV file: {}".format(student_id, file.filename))
         raise HTTPException(400, "Please upload a CSV file")
 
-    logger.info(f"Student {student_id} uploading task CSV: {file.filename}")
+    logger.info("Student {} uploading task CSV: {}".format(student_id, file.filename))
     incoming = _parse_csv(await file.read())
 
     conn = sqlite3.connect(DB_PATH)
@@ -543,10 +544,10 @@ async def upload_tasks(student_id: int, file: UploadFile = File(...)):
 
     conn.commit()
     conn.close()
-    logger.info(f"Student {student_id} CSV upload: {added} added, {updated} updated, {archived_count} archived")
+    logger.info("Student {} CSV upload: {} added, {} updated, {} archived".format(student_id, added, updated, archived_count))
     return {"success": True, "tasks_added": added, "tasks_updated": updated, "tasks_archived": archived_count}
 
-    logger.info(f"Student {student_id} CSV upload: {added} added, {updated} updated, {archived_count} archived from '{file.filename}'")
+    logger.info("Student {} CSV upload: {} added, {} updated, {} archived from '{}'".format(student_id, added, updated, archived_count, file.filename))
     return {"success": True, "tasks_added": added, "tasks_updated": updated, "tasks_archived": archived_count}
 
 @app.post("/tasks/archive-all/{student_id}")
@@ -602,7 +603,7 @@ async def overwrite_tasks(student_id: int, file: UploadFile = File(...)):
 
     conn.commit()
     conn.close()
-    logger.info(f"Student {student_id} overwrite upload: {added} added, {updated} updated")
+    logger.info("Student {} overwrite upload: {} added, {} updated".format(student_id, added, updated))
     return {"success": True, "tasks_added": added, "tasks_updated": updated}
 
 @app.get("/tasks/export/{student_id}")
@@ -630,11 +631,11 @@ async def export_tasks(student_id: int):
         taskid = row[0] if row[0] else (i + 1)
         writer.writerow([taskid, row[1], row[2] or '', row[3], weight_to_label.get(row[4], 'medium')])
 
-    filename = f"{student[0].replace(' ', '_')}_tasks.csv"
+    filename = "{}_tasks.csv".format(student[0].replace(' ', '_'))
     return Response(
         content=output.getvalue(),
         media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
+        headers={"Content-Disposition": "attachment; filename={}".format(filename)}
     )
 
 @app.post("/task/start/{student_id}/{task_id}")
@@ -645,7 +646,7 @@ async def start_task(student_id: int, task_id: int):
     c.execute("SELECT id FROM active_sessions WHERE student_id = ?", (student_id,))
     if c.fetchone():
         conn.close()
-        logger.warning(f"Student {student_id} tried to start task {task_id} but already has an active session")
+        logger.warning("Student {} tried to start task {} but already has an active session".format(student_id, task_id))
         raise HTTPException(400, "Please finish your current task first!")
     
     start_time = datetime.now().isoformat()
@@ -655,7 +656,7 @@ async def start_task(student_id: int, task_id: int):
     conn.commit()
     conn.close()
     
-    logger.info(f"Student {student_id} started task {task_id} at {start_time}")
+    logger.info("Student {} started task {} at {}".format(student_id, task_id, start_time))
     return {"success": True, "start_time": start_time}
 
 @app.post("/task/finish/{student_id}")
@@ -671,7 +672,7 @@ async def finish_task(student_id: int):
     session = c.fetchone()
     if not session:
         conn.close()
-        logger.warning(f"Student {student_id} tried to finish a task but has no active session")
+        logger.warning("Student {} tried to finish a task but has no active session".format(student_id))
         raise HTTPException(400, "No active task found")
     
     session_id, task_id, start_time, estimated_time, difficulty = session
@@ -695,14 +696,14 @@ async def finish_task(student_id: int):
     conn.close()
     
     logger.info(
-        f"Student {student_id} finished task {task_id}: "
-        f"actual={actual_time}s, estimated={estimated_time}s, "
-        f"focus={round(focus_score,2)}, impact={round(impact_score,2)}"
+        "Student {} finished task {}: ".format(student_id, task_id) +
+        "actual={}s, estimated={}s, ".format(actual_time, estimated_time) +
+        "focus={}, impact={}".format(round(focus_score,2), round(impact_score,2))
     )
     return {
         "success": True,
         "actual_time": actual_time,
-        "time_display": f"{actual_time}s",
+        "time_display": "{}s".format(actual_time),
         "focus_score": round(focus_score, 2),
         "impact_score": round(impact_score, 2)
     }
@@ -719,10 +720,10 @@ async def cancel_task(student_id: int):
     conn.close()
     
     if deleted > 0:
-        logger.info(f"Student {student_id} cancelled their active task")
+        logger.info("Student {} cancelled their active task".format(student_id))
         return {"success": True, "message": "Task cancelled"}
     else:
-        logger.warning(f"Student {student_id} tried to cancel but had no active task")
+        logger.warning("Student {} tried to cancel but had no active task".format(student_id))
         raise HTTPException(400, "No active task to cancel")
 
 @app.post("/task/abandon/{student_id}")
@@ -756,7 +757,7 @@ async def abandon_task(student_id: int):
     conn.commit()
     conn.close()
 
-    logger.info(f"Student {student_id} abandoned task {task_id}: actual={actual_time}s (incomplete)")
+    logger.info("Student {} abandoned task {}: actual={}s (incomplete)".format(student_id, task_id, actual_time))
     return {"success": True, "actual_time": actual_time}
 
 @app.get("/results/{student_id}", response_class=HTMLResponse)
@@ -792,7 +793,7 @@ async def results(request: Request, student_id: int):
             "title": row[1],
             "description": row[2],
             "estimated_time": row[3],
-            "actual_time_display": f"{actual_seconds}s",
+            "actual_time_display": "{}s".format(actual_seconds),
             "actual_time": actual_seconds,
             "focus_score": round(row[5], 2),
             "impact_score": round(row[6], 2),
@@ -805,6 +806,19 @@ async def results(request: Request, student_id: int):
     
     streak = get_student_streak(student_id)
     
+    # Calculate total time in hours, minutes, seconds
+    total_hours = total_time // 3600
+    remaining_seconds = total_time % 3600
+    total_minutes = remaining_seconds // 60
+    total_seconds = remaining_seconds % 60
+    
+    if total_hours > 0:
+        total_time_display = "{}h {}m {}s".format(total_hours, total_minutes, total_seconds)
+    elif total_minutes > 0:
+        total_time_display = "{}m {}s".format(total_minutes, total_seconds)
+    else:
+        total_time_display = "{}s".format(total_seconds)
+    
     conn.close()
     
     return templates.TemplateResponse("results.html", {
@@ -813,7 +827,7 @@ async def results(request: Request, student_id: int):
         "student_name": student[0],
         "completions": completions,
         "total_tasks": count,
-        "total_time_display": f"{total_time}s",
+        "total_time_display": total_time_display,
         "avg_focus_score": avg_focus,
         "streak": streak
     })
@@ -834,7 +848,7 @@ async def reset_student_data(student_id: int):
     conn.commit()
     conn.close()
 
-    logger.info(f"Student {student_id} active session reset (deleted={deleted})")
+    logger.info("Student {} active session reset (deleted={})".format(student_id, deleted))
     return {"success": True, "message": "Active session cleared"}
 
 @app.post("/tasks/clear")
@@ -855,7 +869,7 @@ async def clear_all_tasks(student_id: int = Form(...)):
     conn.commit()
     conn.close()
 
-    logger.info(f"Student {student_id} cleared their tasks and was removed: {tasks_deleted} tasks and {completions_deleted} completions deleted")
+    logger.info("Student {} cleared their tasks and was removed: {} tasks and {} completions deleted".format(student_id, tasks_deleted, completions_deleted))
     return {
         "success": True,
         "tasks_deleted": tasks_deleted,
@@ -879,7 +893,7 @@ async def clear_student_tasks(student_id: int):
     conn.commit()
     conn.close()
     
-    logger.info(f"Student {student_id} cleared all tasks: {tasks_deleted} tasks, {completions_deleted} completions deleted")
+    logger.info("Student {} cleared all tasks: {} tasks, {} completions deleted".format(student_id, tasks_deleted, completions_deleted))
     return {
         "success": True,
         "tasks_deleted": tasks_deleted,
@@ -944,7 +958,7 @@ async def update_task(
     conn.commit()
     conn.close()
 
-    logger.info(f"Student {student_id} updated task {task_id}: title='{title}', estimated_time={estimated_time}s, difficulty={difficulty_weight}")
+    logger.info("Student {} updated task {}: title='{}', estimated_time={}s, difficulty={}".format(student_id, task_id, title, estimated_time, difficulty_weight))
     return {"success": True, "message": "Task updated successfully"}
 
 @app.delete("/task/{task_id}")
@@ -967,13 +981,13 @@ async def delete_task(task_id: int, student_id: int):
     conn.close()
     
     if deleted > 0:
-        logger.info(f"Student {student_id} deleted task {task_id} (had {completion_count} completions)")
+        logger.info("Student {} deleted task {} (had {} completions)".format(student_id, task_id, completion_count))
         return {
             "success": True,
-            "message": f"Task deleted (had {completion_count} completions in history)"
+            "message": "Task deleted (had {} completions in history)".format(completion_count)
         }
     else:
-        logger.warning(f"Student {student_id} tried to delete task {task_id} but it was not found")
+        logger.warning("Student {} tried to delete task {} but it was not found".format(student_id, task_id))
         raise HTTPException(404, "Task not found")
 
 if __name__ == "__main__":
