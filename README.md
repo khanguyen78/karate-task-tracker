@@ -52,12 +52,12 @@ data/
 Tasks are loaded from a CSV file with the following columns:
 
 ```
-taskid,task,description,estimated_time,difficulty
-1,Front Kick,Practice front kick technique,600,easy
-2,Roundhouse Kick,Focus on hip rotation,900,medium
-3,Kata Heian Shodan,Full kata run-throughs,1200,hard
-4,Sparring Drills,Partner sparring combos,1800,expert
-5,Cool Down Stretches,,300,
+taskid,task,description,estimated_time,difficulty,count
+1,Front Kick,Practice front kick technique,600,easy,20
+2,Roundhouse Kick,Focus on hip rotation,900,medium,15
+3,Kata Heian Shodan,Full kata run-throughs,1200,hard,1
+4,Sparring Drills,Partner sparring combos,1800,expert,
+5,Cool Down Stretches,,300,,
 ```
 
 | Column | Required | Description |
@@ -67,6 +67,7 @@ taskid,task,description,estimated_time,difficulty
 | `description` | No | Optional detail shown under the task name. |
 | `estimated_time` | No | Time in **seconds**. Set to `0` for no countdown. Defaults to 900 if blank. |
 | `difficulty` | No | `easy`, `medium`, `hard`, or `expert`. Auto-assigned by time if blank. |
+| `count` | No | Repetition count (e.g. number of punches or kicks). **Defaults to 10** if left blank. |
 
 ### Difficulty Auto-Assignment (when blank)
 | Estimated Time | Difficulty | Weight |
@@ -103,9 +104,12 @@ Set `estimated_time` to `0` in your CSV or edit form. No timer is shown — just
 
 | Key | Action |
 |---|---|
-| `Enter` | Click Finished (when task is active and not paused) |
+| `Enter` | Click Finished (when a task is active and not paused) |
 | `Space` | Same as Enter |
 | `P` | Pause / Resume the active task timer |
+| `R` | Reset the current task — restarts timer from zero, no record saved |
+| `N` | Cancel current task (recorded as incomplete) → advance to Next task |
+| `B` | Cancel current task (recorded as incomplete) → go Back to Previous task |
 
 > Shortcuts are disabled when typing in a text field, textarea, or dropdown.
 
@@ -141,6 +145,7 @@ Items marked 🔒 require the **admin password** (default: `admin`). The passwor
 |---|---|---|
 | 🔄 Reset Session | 🔒 Yes | Cancels the active task session. History and tasks are kept. |
 | 🧹 Clear Session | 🔒 Yes | Same as Reset Session |
+| 📋 Clear Tasks (Keep Results) | 🔒 Yes | Archives all active tasks and clears the active session. Your task list becomes empty (re-upload a CSV to continue), but all Results/completion history is fully preserved. |
 | 🗑️ Clear All Data for User | 🔒 Yes | Deletes the account, all tasks, and all history. **Cannot be undone.** |
 
 ### Sound
@@ -209,9 +214,43 @@ Tasks are matched by `csv_task_id` first, then by title, so history links up cor
 
 The default password is **`admin`**.
 
-Protected actions: Add a Task, Modify a Task, Remove a Task, Upload New CSV, Reset Session, Clear Session, Clear All Data for User.
+Protected actions: Add a Task, Modify a Task, Remove a Task, Upload New CSV, Reset Session, Clear Session, Clear Tasks (Keep Results), Clear All Data for User.
 
 The password is checked client-side and remembered for the browser session. To change it, update the string `'admin'` in `adminAuth()` in `dashboard.html`.
+
+---
+
+## 💾 Surviving Container Destruction
+
+Your `docker-compose.yml` already mounts the database to a host folder:
+
+```yaml
+volumes:
+  - ./data:/app/data
+```
+
+This means **destroying and recreating the container does NOT delete your data** — `docker compose down` / `docker compose up` is safe. Data is only lost if you delete the `./data` folder itself or the Docker volume.
+
+### Recommended backup strategy (belt-and-suspenders)
+
+For protection against accidental volume deletion, host migration, or disk failure, periodically export your data to a separate location:
+
+1. **Per-user backup** — Hamburger menu → 💾 Export My Data. Downloads a JSON file with that student's tasks (including `taskid`, `count`, `difficulty`) and full completion history.
+2. **All-users backup** — Hamburger menu → 👥 All Users → ⬇️ Export All Users. Downloads one JSON file with every student.
+3. **Store the JSON file outside the container** — save it to your host machine, a cloud drive, or commit it to a private git repo.
+
+### Restoring after a wipe
+1. Recreate the container (a fresh, empty database is created automatically on startup).
+2. Go to the **👥 All Users** page → **📥 Import Session Data** → upload your backup JSON.
+3. Tasks are matched by `taskid` (or title if no `taskid`), so importing into a wiped database recreates the exact same tasks. Re-importing the same file twice does **not** duplicate completion history (duplicates are detected automatically).
+
+### Automating backups (optional)
+You can schedule a periodic export with `curl` and cron, saving straight to a host-mounted backup folder:
+
+```bash
+# crontab entry — daily backup at 2am
+0 2 * * * curl -s http://localhost:8000/export/all -o /path/to/backups/karate_backup_$(date +\%F).json
+```
 
 ---
 
@@ -220,7 +259,7 @@ The password is checked client-side and remembered for the browser session. To c
 | Table | Key Columns |
 |---|---|
 | `students` | `id`, `name` (unique, case-insensitive), `created_at` |
-| `tasks` | `id`, `student_id`, `title`, `description`, `estimated_time`, `difficulty_weight`, `archived`, `task_order`, `csv_task_id` |
+| `tasks` | `id`, `student_id`, `title`, `description`, `estimated_time`, `difficulty_weight`, `count`, `archived`, `task_order`, `csv_task_id` |
 | `task_completions` | `id`, `student_id`, `task_id`, `actual_time`, `focus_score`, `impact_score`, `completed` (1=done, 0=cancelled) |
 | `active_sessions` | `id`, `student_id`, `task_id`, `start_time` |
 
@@ -237,6 +276,7 @@ The database is auto-created on first run. Migrations for new columns run automa
 | GET | `/student/{id}` | Dashboard |
 | GET | `/results/{id}` | Results page |
 | GET | `/users` | All users admin page |
+| GET | `/tasks/view/{id}` | View all tasks (active + archived) in a table |
 | POST | `/upload-tasks/{id}` | Merge CSV into task list |
 | POST | `/upload-tasks/overwrite/{id}` | Replace task list with new CSV |
 | GET | `/tasks/export/{id}` | Download task list as CSV |

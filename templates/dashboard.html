@@ -180,6 +180,7 @@
     <!-- Drawer -->
     <div class="menu-drawer" id="menuDrawer">
         <a href="/results/{{ student_id }}">📊 View Results</a>
+        <a href="/tasks/view/{{ student_id }}">📋 View My Tasks</a>
         <a href="/tasks/export/{{ student_id }}">⬇️ Download My CSV</a>
         <a href="/export/user/{{ student_id }}">💾 Export My Data</a>
         <a href="/">🏠 Home</a>
@@ -195,6 +196,7 @@
         <div class="menu-divider"></div>
         <button class="menu-danger" onclick="closeMenu(); adminAuth(resetSession)">🔄 Reset Session</button>
         <button class="menu-danger" onclick="closeMenu(); adminAuth(clearSession)">🧹 Clear Session</button>
+        <button class="menu-danger" onclick="closeMenu(); adminAuth(clearTasksKeepResults)">📋 Clear Tasks (Keep Results)</button>
         <button class="menu-danger" onclick="closeMenu(); adminAuth(clearAllUserData)">🗑️ Clear All Data for User</button>
         <div class="menu-divider"></div>
         <div class="sound-menu-wrap" onmouseenter="showFlyout()" onmouseleave="hideFlyout()">
@@ -250,6 +252,9 @@
         <div class="card active-task-card" id="activeTaskCard">
             <h2>🎯 Active Task</h2>
             <h3 class="task-title">{{ active_session.task_title }}</h3>
+            {% if active_session.count %}
+            <p class="count-badge" style="display:inline-block; margin-bottom:10px;">🔢 {{ active_session.count }}x</p>
+            {% endif %}
             {% if active_session.task_description %}
             <p class="task-description-active">{{ active_session.task_description }}</p>
             {% endif %}
@@ -311,6 +316,7 @@
                         {% elif task.difficulty_weight <= 1.5 %}🟠 Hard
                         {% else %}🔴 Expert{% endif %}
                     </span>
+                    <span class="count-badge">🔢 {{ task.count }}x</span>
                 </div>
                 
                 {% if not active_session %}
@@ -432,7 +438,7 @@
             } catch (e) { /* audio not supported */ }
         }
 
-        let autoAdvance = localStorage.getItem('karateAutoAdvance') !== 'false';
+        let autoAdvance = localStorage.getItem('karateAutoAdvance') === 'true';
 
         function toggleAutoAdvance() {
             autoAdvance = !autoAdvance;
@@ -565,13 +571,16 @@
 
         function getNextTask() {
             if (!currentTaskId || allTasks.length === 0) return null;
-            
             const currentIndex = allTasks.findIndex(t => t.id === currentTaskId);
-            if (currentIndex === -1 || currentIndex === allTasks.length - 1) {
-                return null;
-            }
-            
+            if (currentIndex === -1 || currentIndex === allTasks.length - 1) return null;
             return allTasks[currentIndex + 1];
+        }
+
+        function getPrevTask() {
+            if (!currentTaskId || allTasks.length === 0) return null;
+            const currentIndex = allTasks.findIndex(t => t.id === currentTaskId);
+            if (currentIndex <= 0) return null;
+            return allTasks[currentIndex - 1];
         }
 
         async function finishTask(isAutoMode) {
@@ -756,6 +765,37 @@
             }
         }
 
+        async function resetCurrentTask() {
+            if (!currentTaskId) return;
+            clearInterval(timerInterval);
+            // Cancel the current session without recording (clean slate)
+            try {
+                await fetch('/task/cancel/' + studentId, { method: 'POST' });
+            } catch(e) {}
+            // Restart the same task
+            await startTask(currentTaskId, currentTaskEstimatedTime);
+        }
+
+        async function goToPrevTask() {
+            if (!currentTaskId) return;
+            clearInterval(timerInterval);
+            const prevTask = getPrevTask();
+            try {
+                const response = await fetch('/task/abandon/' + studentId, { method: 'POST' });
+                if (response.ok) {
+                    if (prevTask) {
+                        await startTask(prevTask.id, prevTask.estimated_time);
+                    } else {
+                        window.location.reload();
+                    }
+                } else {
+                    timerInterval = setInterval(updateTimer, 1000);
+                }
+            } catch(e) {
+                timerInterval = setInterval(updateTimer, 1000);
+            }
+        }
+
         async function resetSession() {
             try {
                 const response = await fetch('/student/' + studentId + '/reset', { method: 'POST' });
@@ -781,6 +821,23 @@
                 }
             } catch (error) {
                 alert('Error clearing session: ' + error.message);
+            }
+        }
+
+        async function clearTasksKeepResults() {
+            try {
+                // Archive all active tasks (keeps history intact for Results) and clear any active session
+                await fetch('/student/' + studentId + '/reset', { method: 'POST' });
+                const response = await fetch('/tasks/archive-all/' + studentId, { method: 'POST' });
+                if (response.ok) {
+                    alert('✅ Tasks cleared! Your Results history is untouched.');
+                    window.location.reload();
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || 'Error clearing tasks');
+                }
+            } catch (error) {
+                alert('Error clearing tasks: ' + error.message);
             }
         }
         async function clearAllUserData() {
@@ -895,20 +952,34 @@
             document.getElementById('menuOverlay').classList.remove('open');
             document.getElementById('menuBtn').textContent = '☰';
         }
-        // Keyboard shortcuts: Enter/Space = Finished, P = Pause, A = Toggle Auto-Advance
+        // Keyboard shortcuts
+        // Enter / Space → Finished
+        // P             → Pause / Resume
+        // R             → Reset current task (restart from zero, no record)
+        // N             → Cancel current task → Next task (recorded as incomplete)
+        // B             → Cancel current task → Previous task (recorded as incomplete)
         document.addEventListener('keydown', function(e) {
-            // Ignore if typing in an input or textarea
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
-            if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) {
-                e.preventDefault();
-                const btn = document.getElementById('finishBtn');
-                if (btn && !btn.disabled) btn.click();
-            }
-            if ((e.key === 'p' || e.key === 'P') && !e.repeat) {
-                pauseTask();
-            }
-            if ((e.key === 'a' || e.key === 'A') && !e.repeat) {
-                toggleAutoAdvance();
+            if (e.repeat) return;
+            switch (e.key) {
+                case 'Enter':
+                case ' ':
+                    e.preventDefault();
+                    const btn = document.getElementById('finishBtn');
+                    if (btn && !btn.disabled) btn.click();
+                    break;
+                case 'p': case 'P':
+                    pauseTask();
+                    break;
+                case 'r': case 'R':
+                    if (currentTaskId) resetCurrentTask();
+                    break;
+                case 'n': case 'N':
+                    if (currentTaskId) cancelTask();
+                    break;
+                case 'b': case 'B':
+                    if (currentTaskId) goToPrevTask();
+                    break;
             }
         });
 

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Tasks</title>
+    <link rel="stylesheet" href="/static/style.css?v=2">
+    <style>
+        table.task-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        table.task-table th, table.task-table td {
+            text-align: left;
+            padding: 12px 10px;
+            border-bottom: 1px solid #eee;
+            font-size: 1rem;
+        }
+        table.task-table th {
+            color: #888;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+        table.task-table tr.archived { opacity: 0.5; }
+        .archived-tag {
+            background: #eee;
+            color: #888;
+            border-radius: 12px;
+            padding: 2px 10px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .active-tag {
+            background: #e8f5e9;
+            color: #2e7d32;
+            border-radius: 12px;
+            padding: 2px 10px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        @media (max-width: 700px) {
+            table.task-table thead { display: none; }
+            table.task-table tr { display: block; border-bottom: 2px solid #ddd; padding: 10px 0; }
+            table.task-table td { display: flex; justify-content: space-between; border-bottom: none; padding: 4px 0; }
+            table.task-table td::before { content: attr(data-label); font-weight: 600; color: #888; margin-right: 10px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📋 {{ student_name }}'s Tasks</h1>
+        </div>
+
+        <div class="nav-buttons">
+            <a href="/student/{{ student_id }}" class="btn btn-primary">← Back to Dashboard</a>
+            <a href="/tasks/export/{{ student_id }}" class="btn btn-secondary">⬇️ Download as CSV</a>
+            <a href="/" class="btn btn-secondary">🏠 Home</a>
+        </div>
+
+        <div class="card">
+            {% if tasks %}
+            <table class="task-table">
+                <thead>
+                    <tr>
+                        <th>Task ID</th>
+                        <th>Task</th>
+                        <th>Description</th>
+                        <th>Time</th>
+                        <th>Difficulty</th>
+                        <th>Count</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for task in tasks %}
+                    <tr class="{% if task.archived %}archived{% endif %}">
+                        <td data-label="Task ID">{{ task.csv_task_id or task.id }}</td>
+                        <td data-label="Task">{{ task.title }}</td>
+                        <td data-label="Description">{{ task.description or '—' }}</td>
+                        <td data-label="Time">{% if task.estimated_time > 0 %}{{ task.estimated_time }}s{% else %}No countdown{% endif %}</td>
+                        <td data-label="Difficulty">{{ task.difficulty }}</td>
+                        <td data-label="Count">{{ task.count }}x</td>
+                        <td data-label="Status">
+                            {% if task.archived %}<span class="archived-tag">Archived</span>
+                            {% else %}<span class="active-tag">Active</span>{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <p class="note" style="margin-top:16px;">💡 Archived tasks were removed by a CSV re-upload but their completion history is preserved in your Results.</p>
+            {% else %}
+            <div class="empty-state">
+                <h2>No tasks yet</h2>
+                <p>Upload a CSV from your dashboard to get started.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>
