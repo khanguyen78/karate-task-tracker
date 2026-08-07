@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Session Dashboard</title>
-    <link rel="stylesheet" href="/static/style.css?v=16">
+    <link rel="stylesheet" href="/static/style.css?v=30">
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         .student-check-grid {
@@ -22,6 +22,8 @@
             border-radius: 12px;
             border: 2px solid #e0e0e0;
             transition: background 0.2s, border-color 0.2s;
+            flex-wrap: wrap;
+            gap: 10px;
         }
         .student-check-card.status-green { background: #e8f5e9; border-color: #4caf50; }
         .student-check-card.status-yellow { background: #fffde7; border-color: #fbc02d; }
@@ -29,12 +31,12 @@
         .student-name-label { font-size: 1.3rem; font-weight: 700; color: #2c3e50; }
         .status-actions { display: flex; align-items: center; gap: 8px; }
         .status-btn {
-            font-size: 1.5rem;
+            font-size: 1.4rem;
             background: #ffffff;
             border: 2px solid #ddd;
             border-radius: 8px;
             cursor: pointer;
-            padding: 6px 10px;
+            padding: 6px 12px;
             transition: transform 0.1s, border-color 0.2s;
             display: flex;
             align-items: center;
@@ -45,6 +47,17 @@
         .badge-green { background: #4caf50; }
         .badge-yellow { background: #fbc02d; color: #333; }
         .badge-blue { background: #1e88e5; }
+
+        .mode-toggle-btn {
+            font-size: 0.8rem;
+            padding: 3px 10px;
+            border-radius: 6px;
+            border: 1px solid #aaa;
+            background: #fff;
+            cursor: pointer;
+            margin-left: 8px;
+            font-weight: 600;
+        }
 
         .eval-header-bar {
             display: flex;
@@ -60,6 +73,7 @@
             justify-content: space-between;
         }
         .nav-control-bar .btn { flex: 1; }
+
         .silent-badge {
             background: #6c757d;
             color: white;
@@ -68,6 +82,68 @@
             font-size: 0.9rem;
             display: inline-block;
         }
+
+        .pause-badge {
+            background: #e74c3c;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            display: inline-block;
+            margin-left: 6px;
+            font-weight: bold;
+        }
+
+        .task-icon-header {
+            font-size: 3rem;
+            margin-bottom: 5px;
+            display: inline-block;
+        }
+
+        .timer-large {
+            font-size: 3.5rem;
+            font-weight: 800;
+            color: #ffffff !important;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+            margin: 10px 0 5px 0;
+            transition: color 0.3s ease;
+        }
+        .timer-yellow { color: #ecc94b !important; text-shadow: 0 2px 10px rgba(236, 201, 75, 0.3); }
+        .timer-red { color: #e53e3e !important; text-shadow: 0 2px 10px rgba(229, 62, 62, 0.4); }
+
+        .workspace-layout {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+            transition: all 0.3s ease;
+        }
+        .workspace-layout.has-sidebar { grid-template-columns: 2fr 1fr; }
+        @media (max-width: 850px) {
+            .workspace-layout.has-sidebar { grid-template-columns: 1fr; }
+        }
+
+        .upcoming-panel {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border: 2px solid #e0e0e0;
+            display: none;
+            height: fit-content;
+        }
+        .upcoming-task-item {
+            padding: 10px 14px;
+            border-radius: 8px;
+            background: #f8f9fa;
+            margin-bottom: 8px;
+            border-left: 4px solid #ccc;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .upcoming-task-item.active { background: #eef2ff; border-left-color: #667eea; font-weight: bold; }
+        .upcoming-task-item.completed { opacity: 0.5; text-decoration: line-through; }
 
         .summary-grid {
             display: grid;
@@ -131,8 +207,15 @@
                 {% endfor %}
             </p>
             {% if hide_timer %}
-                <span class="silent-badge">🤫 Silent Background Timer Active</span>
+                <span class="silent-badge">🤫 Silent Background Timer</span>
             {% endif %}
+            {% if auto_advance %}
+                <span class="silent-badge" style="background:#e67e22; margin-left:6px;">⏩ Auto-Advance Active</span>
+            {% endif %}
+            {% if enable_chime %}
+                <span class="silent-badge" style="background:#27ae60; margin-left:6px;">🔔 Audio Chime ON</span>
+            {% endif %}
+            <span class="pause-badge" id="pauseStatusBadge" style="display: none;">⏸️ SESSION PAUSED</span>
         </div>
 
         {% if not tasks %}
@@ -143,48 +226,68 @@
         </div>
         {% else %}
 
-        <div class="card active-task-card" id="activeTaskCard">
-            <span id="taskIndexBadge" style="font-size: 1.1rem; opacity:0.8;">Task 1 of {{ tasks|length }}</span>
-            <h2 id="taskTitle" class="task-title" style="margin-top:10px;">{{ tasks[0].title }}</h2>
-            <p id="taskDescription" class="task-description-active">{{ tasks[0].description }}</p>
-
-            {% if not hide_timer %}
-            <div class="timer" id="timerDisplay">0s</div>
-            <div class="timer-progress" id="timerProgress">0% complete</div>
-            {% endif %}
-
-            <div class="eval-header-bar">
-                <h3 style="margin: 0;">Student Evaluation:</h3>
-                <button class="btn btn-secondary" onclick="addStudentMidSession()" style="padding: 6px 14px; font-size: 0.95rem;">➕ Add Student</button>
-            </div>
-
-            <div class="student-check-grid" id="studentCheckGrid">
-                {% for s in students %}
-                {% set student_id = s.id if s.id is defined else s['id'] %}
-                {% set student_name = s.name if s.name is defined else s['name'] %}
-                <div class="student-check-card" id="card-student-{{ student_id }}">
-                    <span class="student-name-label">👤 {{ student_name }}</span>
-                    
-                    <div class="status-actions" id="actions-student-{{ student_id }}">
-                        <button class="status-btn" onclick="recordStudentStatus({{ student_id }}, 'green')" title="Green: Completed">🟢 Done</button>
-                        <button class="status-btn" onclick="recordStudentStatus({{ student_id }}, 'yellow')" title="Yellow: Needs Work">🟡 Work</button>
-                        <button class="status-btn" onclick="recordStudentStatus({{ student_id }}, 'blue')" title="Blue: Excellent">🔵 Great</button>
-                    </div>
+        <div class="workspace-layout" id="workspaceLayout">
+            <div class="card active-task-card" id="activeTaskCard">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span id="taskIndexBadge" style="font-size: 1.1rem; opacity:0.8;">Task 1 of {{ tasks|length }}</span>
+                    <button class="btn btn-secondary" onclick="toggleUpcomingPanel()" id="upcomingToggleBtn" style="padding: 4px 12px; font-size: 0.85rem;">
+                        📋 Show Upcoming Tasks
+                    </button>
                 </div>
-                {% endfor %}
+
+                <div style="text-align: center; margin-top: 10px;">
+                    <span id="taskIcon" class="task-icon-header">{{ tasks[0].icon or '🥋' }}</span>
+                    <h2 id="taskTitle" class="task-title" style="margin-top:2px;">{{ tasks[0].title }}</h2>
+                    <p id="taskDescription" class="task-description-active">{{ tasks[0].description }}</p>
+                </div>
+
+                {% if not hide_timer %}
+                <div class="timer timer-large" id="timerDisplay">0s</div>
+                <div class="timer-progress" id="timerProgress">Active timer</div>
+                {% endif %}
+
+                <div class="eval-header-bar">
+                    <h3 style="margin: 0;">Student Evaluation:</h3>
+                    <button class="btn btn-secondary" onclick="addStudentMidSession()" style="padding: 6px 14px; font-size: 0.95rem;">➕ Add Student</button>
+                </div>
+
+                <div class="student-check-grid" id="studentCheckGrid">
+                    {% for s in students %}
+                    {% set student_id = s.id if s.id is defined else s['id'] %}
+                    {% set student_name = s.name if s.name is defined else s['name'] %}
+                    <div class="student-check-card" id="card-student-{{ student_id }}">
+                        <div>
+                            <span class="student-name-label">👤 {{ student_name }}</span>
+                            <button class="mode-toggle-btn" id="toggle-mode-{{ student_id }}" onclick="toggleStudentMode({{ student_id }})">🌱 Basic Scoring</button>
+                        </div>
+                        
+                        <div class="status-actions" id="actions-student-{{ student_id }}">
+                            <button class="status-btn" onclick="recordStudentStatus({{ student_id }}, 'green')" title="Green: Done">🟢 Done</button>
+                            <button class="status-btn" onclick="recordStudentStatus({{ student_id }}, 'yellow')" title="Yellow: Needs Work">🟡 Work</button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="nav-control-bar">
+                    <button class="btn btn-secondary" onclick="prevTask()">⏮️ Previous</button>
+                    <button class="btn btn-warning" onclick="restartTask()">🔄 Restart</button>
+                    <button class="btn btn-primary" id="nextBtn" onclick="nextTask()">⏭️ Next</button>
+                </div>
             </div>
 
-            <div class="nav-control-bar">
-                <button class="btn btn-secondary" onclick="prevTask()">⏮️ Previous</button>
-                <button class="btn btn-warning" onclick="restartTask()">🔄 Restart</button>
-                <button class="btn btn-primary" id="nextBtn" onclick="nextTask()">⏭️ Next</button>
+            <div class="upcoming-panel" id="upcomingPanel">
+                <h3 style="margin-top: 0; font-size: 1.2rem; color: #2c3e50; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px;">
+                    📋 Training Sequence
+                </h3>
+                <div id="upcomingTasksList" style="margin-top: 12px;"></div>
             </div>
         </div>
 
         <div class="card" id="sessionReportCard" style="display: none;">
             <h2 style="text-align: center; font-size: 2.2rem; color: #2c3e50; margin-bottom: 5px;">🏆 Session Performance Summary Report</h2>
             <p id="sessionReportDate" style="text-align: center; font-weight: 600; color: #667eea; font-size: 1.1rem; margin-bottom: 10px;"></p>
-            <p style="text-align: center; color: #666; margin-bottom: 25px;">💡 Click on any student's name to see their current task breakdown!</p>
+            <p style="text-align: center; color: #666; margin-bottom: 25px;">💡 Click on any student's name to see their most recent task breakdown!</p>
             
             <div class="summary-grid" id="summaryGrid"></div>
 
@@ -204,55 +307,244 @@
         const tasks = {{ tasks | tojson }};
         let students = {{ students | tojson }};
         const hideTimer = {{ 'true' if hide_timer else 'false' }};
+        const autoAdvance = {{ 'true' if auto_advance else 'false' }};
+        const enableChime = {{ 'true' if enable_chime else 'false' }};
         const sessionId = "{{ session_id }}";
         let studentIdsArray = "{{ student_ids_str }}".split(",").filter(x => x.length > 0);
 
         let currentTaskIdx = 0;
         let taskElapsedSeconds = 0;
         let timerInterval = null;
+        let isPaused = false;
+        let isUpcomingVisible = false;
         let studentCompletions = {};
+        let studentAdvancedScoringModes = {};
+
+        function playChimeSound() {
+            if (!enableChime) return;
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return;
+                const ctx = new AudioCtx();
+                
+                const now = ctx.currentTime;
+                const osc1 = ctx.createOscillator();
+                const osc2 = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                osc1.type = 'sine';
+                osc2.type = 'sine';
+
+                osc1.frequency.setValueAtTime(659.25, now);
+                osc2.frequency.setValueAtTime(880.00, now + 0.1);
+
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+
+                osc1.connect(gain);
+                osc2.connect(gain);
+                gain.connect(ctx.destination);
+
+                osc1.start(now);
+                osc2.start(now + 0.1);
+                osc1.stop(now + 0.6);
+                osc2.stop(now + 0.6);
+            } catch (e) {
+                console.log("Audio chime error:", e);
+            }
+        }
+
+        function toggleStudentMode(studentId) {
+            studentAdvancedScoringModes[studentId] = !studentAdvancedScoringModes[studentId];
+            renderStudentActions(studentId);
+        }
+
+        function renderStudentActions(studentId) {
+            const actions = document.getElementById('actions-student-' + studentId);
+            const btn = document.getElementById('toggle-mode-' + studentId);
+            if (!actions) return;
+
+            const isAdvancedScoring = studentAdvancedScoringModes[studentId] === true;
+
+            if (btn) {
+                btn.textContent = isAdvancedScoring ? "⭐️ Advanced Scoring" : "🌱 Basic Scoring";
+                btn.style.background = isAdvancedScoring ? "#e3f2fd" : "#e8f5e9";
+            }
+
+            if (studentCompletions[studentId]) return;
+
+            if (isAdvancedScoring) {
+                actions.innerHTML = `
+                    <button class="status-btn" onclick="recordStudentStatus(${studentId}, 'green')" title="Green: Done">🟢 Done</button>
+                    <button class="status-btn" onclick="recordStudentStatus(${studentId}, 'yellow')" title="Yellow: Needs Work">🟡 Work</button>
+                    <button class="status-btn status-btn-blue" onclick="recordStudentStatus(${studentId}, 'blue')" title="Blue: Great">🔵 Great</button>
+                `;
+            } else {
+                actions.innerHTML = `
+                    <button class="status-btn" onclick="recordStudentStatus(${studentId}, 'green')" title="Green: Done">🟢 Done</button>
+                    <button class="status-btn" onclick="recordStudentStatus(${studentId}, 'yellow')" title="Yellow: Needs Work">🟡 Work</button>
+                `;
+            }
+        }
+
+        function isCountUpTask(task) {
+            if (!task) return false;
+            const title = (task.title || '').toLowerCase();
+            const isCountUpFlag = task.is_countup === true || task.difficulty_weight === 0;
+            return isCountUpFlag || title.includes('plank') || title.includes('hold') || title.includes('countup') || title.includes('break') || title.includes('rest');
+        }
 
         function startTaskTimer() {
             clearInterval(timerInterval);
             taskElapsedSeconds = 0;
+            isPaused = false;
             studentCompletions = {};
             
+            const pauseBadge = document.getElementById('pauseStatusBadge');
+            if (pauseBadge) pauseBadge.style.display = 'none';
+
             students.forEach(s => {
                 const sid = s.id !== undefined ? s.id : s['id'];
                 const card = document.getElementById('card-student-' + sid);
-                const actions = document.getElementById('actions-student-' + sid);
-                if (card && actions) {
+                if (card) {
                     card.className = 'student-check-card';
-                    actions.innerHTML = `
-                        <button class="status-btn" onclick="recordStudentStatus(${sid}, 'green')" title="Green: Completed">🟢 Done</button>
-                        <button class="status-btn" onclick="recordStudentStatus(${sid}, 'yellow')" title="Yellow: Needs Work">🟡 Work</button>
-                        <button class="status-btn" onclick="recordStudentStatus(${sid}, 'blue')" title="Blue: Excellent">🔵 Great</button>
-                    `;
+                    renderStudentActions(sid);
                 }
             });
 
             updateTaskUI();
+            renderUpcomingTasks();
+            updateTimerDisplay();
 
             timerInterval = setInterval(() => {
-                taskElapsedSeconds++;
-                if (!hideTimer) {
-                    const timerEl = document.getElementById('timerDisplay');
-                    const progressEl = document.getElementById('timerProgress');
-                    const est = tasks[currentTaskIdx].estimated_time;
-                    
-                    if (timerEl) timerEl.textContent = taskElapsedSeconds + 's';
-                    if (progressEl && est > 0) {
-                        const pct = Math.min(100, Math.round((taskElapsedSeconds / est) * 100));
-                        progressEl.textContent = pct + '% complete (~' + est + 's est)';
+                if (!isPaused) {
+                    taskElapsedSeconds++;
+                    updateTimerDisplay();
+
+                    const current = tasks[currentTaskIdx];
+                    const est = current ? current.estimated_time : 0;
+                    if (autoAdvance && !isCountUpTask(current) && est > 0 && taskElapsedSeconds >= est) {
+                        nextTask();
                     }
                 }
             }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            if (hideTimer) return;
+
+            const timerEl = document.getElementById('timerDisplay');
+            const progressEl = document.getElementById('timerProgress');
+            const current = tasks[currentTaskIdx];
+            const est = current ? current.estimated_time : 0;
+            const countUpMode = isCountUpTask(current);
+
+            if (timerEl) {
+                timerEl.classList.remove('timer-yellow', 'timer-red');
+
+                if (countUpMode) {
+                    timerEl.textContent = taskElapsedSeconds + 's';
+                } else {
+                    const remainingSeconds = est - taskElapsedSeconds;
+
+                    if (remainingSeconds <= 10) {
+                        timerEl.classList.add('timer-red');
+                    } else if (remainingSeconds <= 20) {
+                        timerEl.classList.add('timer-yellow');
+                    }
+
+                    if (remainingSeconds >= 0) {
+                        timerEl.textContent = remainingSeconds + 's';
+                    } else {
+                        timerEl.textContent = '0s (+' + Math.abs(remainingSeconds) + 's over)';
+                    }
+                }
+
+                if (isPaused) {
+                    timerEl.textContent += ' (PAUSED)';
+                    timerEl.style.opacity = '0.5';
+                } else {
+                    timerEl.style.opacity = '1';
+                }
+            }
+
+            if (progressEl) {
+                if (countUpMode) {
+                    progressEl.textContent = 'Count-up hold drill';
+                } else if (est > 0) {
+                    const remainingSeconds = est - taskElapsedSeconds;
+                    if (remainingSeconds >= 0) {
+                        const pctRemaining = Math.max(0, Math.round((remainingSeconds / est) * 100));
+                        progressEl.textContent = pctRemaining + '% remaining (~' + est + 's est)';
+                    } else {
+                        progressEl.textContent = 'Time expired (~' + est + 's est)';
+                    }
+                } else {
+                    progressEl.textContent = 'Active timer';
+                }
+            }
+        }
+
+        function togglePause() {
+            isPaused = !isPaused;
+            const pauseBadge = document.getElementById('pauseStatusBadge');
+            if (pauseBadge) {
+                pauseBadge.style.display = isPaused ? 'inline-block' : 'none';
+            }
+            updateTimerDisplay();
+        }
+
+        function toggleUpcomingPanel() {
+            isUpcomingVisible = !isUpcomingVisible;
+            const layout = document.getElementById('workspaceLayout');
+            const panel = document.getElementById('upcomingPanel');
+            const btn = document.getElementById('upcomingToggleBtn');
+
+            if (isUpcomingVisible) {
+                layout.classList.add('has-sidebar');
+                panel.style.display = 'block';
+                btn.textContent = '🙈 Hide Upcoming Tasks';
+            } else {
+                layout.classList.remove('has-sidebar');
+                panel.style.display = 'none';
+                btn.textContent = '📋 Show Upcoming Tasks';
+            }
+        }
+
+        function renderUpcomingTasks() {
+            const listEl = document.getElementById('upcomingTasksList');
+            if (!listEl || !tasks) return;
+
+            listEl.innerHTML = tasks.map((t, idx) => {
+                let statusClass = '';
+                let badge = `${idx + 1}.`;
+                if (idx < currentTaskIdx) {
+                    statusClass = 'completed';
+                    badge = '✓';
+                } else if (idx === currentTaskIdx) {
+                    statusClass = 'active';
+                    badge = '▶';
+                }
+
+                const timeDisplay = isCountUpTask(t) ? 'Count Up' : `${t.estimated_time}s`;
+
+                return `
+                    <div class="upcoming-task-item ${statusClass}">
+                        <span style="font-size:1.2rem;">${t.icon || '🥋'}</span>
+                        <div style="flex:1;">
+                            <div>${badge} <strong>${t.title}</strong> (${timeDisplay})</div>
+                            ${t.description ? `<div style="font-size:0.8rem; opacity:0.75; margin-top:2px;">${t.description}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
         }
 
         function updateTaskUI() {
             if (!tasks || tasks.length === 0) return;
             const current = tasks[currentTaskIdx];
             document.getElementById('taskIndexBadge').textContent = 'Task ' + (currentTaskIdx + 1) + ' of ' + tasks.length;
+            document.getElementById('taskIcon').textContent = current.icon || '🥋';
             document.getElementById('taskTitle').textContent = current.title;
             document.getElementById('taskDescription').textContent = current.description || '';
 
@@ -297,11 +589,13 @@
                 newCard.className = "student-check-card";
                 newCard.id = `card-student-${newStudent.id}`;
                 newCard.innerHTML = `
-                    <span class="student-name-label">👤 ${newStudent.name}</span>
+                    <div>
+                        <span class="student-name-label">👤 ${newStudent.name}</span>
+                        <button class="mode-toggle-btn" id="toggle-mode-${newStudent.id}" onclick="toggleStudentMode(${newStudent.id})">🌱 Basic Scoring</button>
+                    </div>
                     <div class="status-actions" id="actions-student-${newStudent.id}">
-                        <button class="status-btn" onclick="recordStudentStatus(${newStudent.id}, 'green')" title="Green: Completed">🟢 Done</button>
+                        <button class="status-btn" onclick="recordStudentStatus(${newStudent.id}, 'green')" title="Green: Done">🟢 Done</button>
                         <button class="status-btn" onclick="recordStudentStatus(${newStudent.id}, 'yellow')" title="Yellow: Needs Work">🟡 Work</button>
-                        <button class="status-btn" onclick="recordStudentStatus(${newStudent.id}, 'blue')" title="Blue: Excellent">🔵 Great</button>
                     </div>
                 `;
                 grid.appendChild(newCard);
@@ -328,9 +622,9 @@
             card.classList.add('status-' + statusColor);
 
             const labels = {
-                'green': '🟢 Completed',
+                'green': '🟢 Done',
                 'yellow': '🟡 Needs Work',
-                'blue': '🔵 Excellent'
+                'blue': '🔵 Great'
             };
 
             actions.innerHTML = `<span class="badge-recorded badge-${statusColor}">${labels[statusColor]} (${taskElapsedSeconds}s)</span>`;
@@ -350,9 +644,30 @@
             } catch (e) {
                 console.error("Failed to record completion", e);
             }
+
+            const completedCount = Object.keys(studentCompletions).length;
+            if (completedCount >= students.length) {
+                setTimeout(() => {
+                    nextTask();
+                }, 400);
+            }
+        }
+
+        // Process Space / Enter key action
+        async function completeAllUnscoredAsDoneAndAdvance() {
+            for (const s of students) {
+                const sid = s.id !== undefined ? s.id : s['id'];
+                // If student has NOT received a rating yet, record them as Done (Green)
+                if (!studentCompletions[sid]) {
+                    await recordStudentStatus(sid, 'green');
+                }
+            }
+            // Proceed to the next task
+            nextTask();
         }
 
         async function nextTask() {
+            playChimeSound();
             if (currentTaskIdx < tasks.length - 1) {
                 currentTaskIdx++;
                 startTaskTimer();
@@ -379,7 +694,7 @@
         async function showSessionSummary() {
             confetti({ particleCount: 150, spread: 90, origin: { y: 0.5 } });
 
-            document.getElementById('activeTaskCard').style.display = 'none';
+            document.getElementById('workspaceLayout').style.display = 'none';
 
             const now = new Date();
             const localDate = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -435,11 +750,11 @@
                             <strong>${s.total_time}s</strong>
                         </div>
                         <div class="summary-stat-row">
-                            <span>🔵 Excellent:</span>
+                            <span>🔵 Great:</span>
                             <span class="pill" style="background:#e3f2fd; color:#1e88e5;">${s.blue_count}</span>
                         </div>
                         <div class="summary-stat-row">
-                            <span>🟢 Completed:</span>
+                            <span>🟢 Done:</span>
                             <span class="pill" style="background:#e8f5e9; color:#4caf50;">${s.green_count}</span>
                         </div>
                         <div class="summary-stat-row">
@@ -475,6 +790,41 @@
         function restartTask() {
             startTaskTimer();
         }
+
+        // Updated Keyboard Shortcuts Listener
+        document.addEventListener('keydown', function(e) {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+                return;
+            }
+
+            const key = e.key.toLowerCase();
+
+            // Spacebar or Enter Key: Marks all unscored students as Done (Green) & advances to next task
+            if (e.key === ' ' || e.key === 'Enter') {
+                e.preventDefault();
+                completeAllUnscoredAsDoneAndAdvance();
+            } 
+            // N Key: Simply advances to next task
+            else if (key === 'n') {
+                e.preventDefault();
+                nextTask();
+            }
+            // B Key: Back / Previous Task
+            else if (key === 'b') {
+                e.preventDefault();
+                prevTask();
+            } 
+            // P Key: Pause / Unpause toggle
+            else if (key === 'p') {
+                e.preventDefault();
+                togglePause();
+            } 
+            // R Key: Restart Task
+            else if (key === 'r') {
+                e.preventDefault();
+                restartTask();
+            }
+        });
 
         if (tasks && tasks.length > 0) {
             startTaskTimer();

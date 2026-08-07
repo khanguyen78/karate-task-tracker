@@ -4,19 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Karate Task Tracker</title>
-    <link rel="stylesheet" href="/static/style.css?v=12">
+    <link rel="stylesheet" href="/static/style.css?v=29">
     <style>
         .toggle-container {
             display: flex;
             align-items: center;
             gap: 10px;
-            margin: 15px 0;
-            font-size: 1.1rem;
+            margin: 12px 0;
+            font-size: 1.05rem;
             cursor: pointer;
         }
         .toggle-container input {
-            width: 22px;
-            height: 22px;
+            width: 20px;
+            height: 20px;
             cursor: pointer;
         }
         .form-group-card {
@@ -86,13 +86,23 @@
                         2. Upload Task List CSV (Optional):
                     </label>
                     <input type="file" id="csvFile" name="file" accept=".csv" class="file-input">
-                    <p class="small-text" style="margin-top:5px;">CSV Headers: <code>task, description, estimated_time, difficulty</code></p>
+                    <p class="small-text" style="margin-top:5px;">CSV Headers: <code>task, description, estimated_time, difficulty, icon</code></p>
                 </div>
 
                 <div class="form-group-card">
                     <label class="toggle-container">
                         <input type="checkbox" name="show_timer" value="true">
-                        <span>⏱️ <strong>Display Visible Countdown Timer</strong> (Default: Timer is hidden and tracks quietly in background)</span>
+                        <span>⏱️ <strong>Display Visible Timer</strong> (Default: Hidden in background)</span>
+                    </label>
+                    
+                    <label class="toggle-container">
+                        <input type="checkbox" name="auto_advance" value="true">
+                        <span>⏩ <strong>Auto-advance on Countdown Expiration</strong> (Skipped students are not scored)</span>
+                    </label>
+
+                    <label class="toggle-container">
+                        <input type="checkbox" name="enable_chime" value="true">
+                        <span>🔔 <strong>Play Audio Chime on Task Transitions</strong> (Default: OFF)</span>
                     </label>
                 </div>
 
@@ -103,29 +113,29 @@
         </div>
 
         <div class="card">
-            <h2>📄 Task CSV Format & Scoring Rules</h2>
+            <h2>📄 Task CSV Format & Differentiated Scoring</h2>
             <div class="instructions-grid">
                 <div class="instruction-section">
                     <h3>Example CSV Structure</h3>
-                    <pre class="csv-example">task,description,estimated_time,difficulty
-Front Kicks,10 repetitions per leg,120,easy
-Kata Practice,Heian Shodan form,300,medium
-Heavy Bag,Power combinations,600,hard</pre>
+                    <pre class="csv-example">task,description,estimated_time,difficulty,icon
+Planks,Max time hold,0,countup,🧘
+Front Kicks,10 repetitions per leg,120,easy,🦵
+Kata Practice,Heian Shodan form,300,medium,🥋
+Water Break,Rest and hydrate,60,countup,💧</pre>
                 </div>
 
                 <div class="instruction-section">
-                    <h3>Performance Evaluation Options</h3>
+                    <h3>Differentiated Scoring Modes</h3>
                     <ul style="padding-left: 20px; line-height: 1.8;">
-                        <li>🟢 <strong>Done:</strong> Task completed with good effort.</li>
-                        <li>🟡 <strong>Needs Work:</strong> Required correction or extra practice.</li>
-                        <li>🔵 <strong>Excellent:</strong> Performed with exceptional focus & form!</li>
+                        <li>🌱 <strong>Basic Scoring:</strong> Binary 🟢 Done / 🟡 Needs Work (prevents frustration and decision fatigue).</li>
+                        <li>⭐️ <strong>Advanced Scoring:</strong> Full 🟢 Done / 🟡 Needs Work / 🔵 Great tiers.</li>
                     </ul>
                 </div>
             </div>
         </div>
 
         <div style="text-align: center; margin-top: 15px;">
-            <a href="/users" class="btn btn-secondary" style="display: inline-block;">👥 View All Registered Students & History</a>
+            <a href="/admin" class="btn btn-secondary" style="display: inline-block;">🛡️ Admin Control Panel</a>
         </div>
 
         <div class="footer">

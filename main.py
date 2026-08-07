@@ -24,7 +24,6 @@ templates = Jinja2Templates(directory="templates")
 
 DB_PATH = os.getenv('DATABASE_PATH', 'data/karate_tracker.db')
 
-# --- Logging configuration ---
 LOG_ENABLED = os.getenv('LOG_ENABLED', 'false').lower() == 'true'
 LOG_LEVEL_STR = os.getenv('LOG_LEVEL', 'INFO').upper()
 LOG_PATH = os.getenv('LOG_PATH', '/var/log')
@@ -121,6 +120,19 @@ def clean_csv_value(value: str) -> str:
     return cleaned[:500]
 
 
+def auto_detect_icon(title: str, custom_icon: str = "") -> str:
+    if custom_icon:
+        return custom_icon
+    t = title.lower()
+    if 'kick' in t or 'geri' in t: return '🦵'
+    if 'punch' in t or 'zuki' in t or 'strike' in t or 'bag' in t: return '🥊'
+    if 'plank' in t or 'hold' in t or 'stretch' in t: return '🧘'
+    if 'break' in t or 'water' in t or 'rest' in t: return '💧'
+    if 'kata' in t or 'form' in t or 'karate' in t: return '🥋'
+    if 'warm' in t or 'jump' in t or 'run' in t: return '⏱️'
+    return '🥋'
+
+
 def calculate_difficulty_weight(estimated_time: int) -> float:
     if estimated_time <= 300:
         return 0.5
@@ -173,6 +185,8 @@ async def home(request: Request):
 async def create_session(
     names: str = Form(...), 
     show_timer: bool = Form(False),
+    auto_advance: bool = Form(False),
+    enable_chime: bool = Form(False),
     file: UploadFile = File(None)
 ):
     raw_names = [clean_csv_value(n).title() for n in names.split(",") if clean_csv_value(n)]
@@ -205,17 +219,22 @@ async def create_session(
                     continue
                 description = clean_csv_value(row.get('description', ''))
                 time_str = clean_csv_value(row.get('estimated_time', ''))
+                diff_str = clean_csv_value(row.get('difficulty', '')).lower()
+                icon_str = clean_csv_value(row.get('icon', ''))
+                
                 try:
                     estimated_time = int(''.join(filter(str.isdigit, time_str))) if time_str else 900
                 except Exception:
                     estimated_time = 900
-                diff_str = clean_csv_value(row.get('difficulty', ''))
-                difficulty = parse_difficulty(diff_str, estimated_time)
-                incoming.append((title, description, estimated_time, difficulty))
+
+                is_countup = 'countup' in diff_str or 'up' in diff_str or 'plank' in title.lower() or 'hold' in title.lower() or 'break' in title.lower() or 'rest' in title.lower()
+                difficulty = 0.0 if is_countup else parse_difficulty(diff_str, estimated_time)
+                
+                incoming.append((title, description, estimated_time, difficulty, icon_str))
 
             for sid in student_ids:
                 c.execute("UPDATE tasks SET archived = 1 WHERE student_id = ?", (sid,))
-                for title, description, estimated_time, difficulty in incoming:
+                for title, description, estimated_time, difficulty, icon_str in incoming:
                     c.execute('''INSERT INTO tasks (student_id, title, description, estimated_time, difficulty_weight, archived)
                                  VALUES (?, ?, ?, ?, ?, 0)''',
                               (sid, title, description, estimated_time, difficulty))
@@ -227,8 +246,10 @@ async def create_session(
     ids_param = ",".join(str(i) for i in student_ids)
     hide_timer = not show_timer
     timer_flag = "1" if hide_timer else "0"
+    advance_flag = "1" if auto_advance else "0"
+    chime_flag = "1" if enable_chime else "0"
     
-    return RedirectResponse(f"/session/dashboard?ids={ids_param}&hide_timer={timer_flag}&session_id={session_id}", status_code=303)
+    return RedirectResponse(f"/session/dashboard?ids={ids_param}&hide_timer={timer_flag}&auto_advance={advance_flag}&enable_chime={chime_flag}&session_id={session_id}", status_code=303)
 
 
 @app.post("/session/add-student")
@@ -255,7 +276,7 @@ async def add_student_mid_session(name: str = Form(...)):
 
 
 @app.get("/session/dashboard", response_class=HTMLResponse)
-async def session_dashboard(request: Request, ids: str, hide_timer: str = "1", session_id: str = "default"):
+async def session_dashboard(request: Request, ids: str, hide_timer: str = "1", auto_advance: str = "0", enable_chime: str = "0", session_id: str = "default"):
     student_ids = [int(i) for i in ids.split(",") if i.isdigit()]
     if not student_ids:
         raise HTTPException(400, "No valid students specified.")
@@ -275,12 +296,18 @@ async def session_dashboard(request: Request, ids: str, hide_timer: str = "1", s
 
     tasks = []
     for idx, row in enumerate(raw_tasks):
+        title = row[0]
+        diff_weight = row[3]
+        is_countup = diff_weight == 0.0 or 'plank' in title.lower() or 'hold' in title.lower() or 'countup' in title.lower() or 'break' in title.lower() or 'rest' in title.lower()
+        
         tasks.append({
             "id": idx + 1,
-            "title": row[0],
+            "title": title,
             "description": row[1] or "",
             "estimated_time": row[2],
-            "difficulty_weight": row[3]
+            "difficulty_weight": diff_weight,
+            "is_countup": is_countup,
+            "icon": auto_detect_icon(title)
         })
 
     conn.close()
@@ -291,7 +318,9 @@ async def session_dashboard(request: Request, ids: str, hide_timer: str = "1", s
         "student_ids_str": ids,
         "session_id": session_id,
         "tasks": tasks,
-        "hide_timer": hide_timer == "1"
+        "hide_timer": hide_timer == "1",
+        "auto_advance": auto_advance == "1",
+        "enable_chime": enable_chime == "1"
     })
 
 
@@ -443,7 +472,6 @@ async def admin_student_history(student_id: int, date: str = None):
 
     student_name = s_row[0]
 
-    # If a date filter is provided (e.g. YYYY-MM-DD), query only records for that date
     if date:
         date_pattern = f"{date}%"
         c.execute('''SELECT tc.id, tc.session_id, COALESCE(t.title, 'Group Drill') as title, 
