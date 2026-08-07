@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Control Panel</title>
+    <link rel="stylesheet" href="/static/style.css?v=17">
+    <style>
+        .admin-layout {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        @media (max-width: 850px) {
+            .admin-layout { grid-template-columns: 1fr; }
+        }
+        .student-list-item {
+            padding: 12px 16px;
+            background: #ffffff;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            border: 2px solid #e0e0e0;
+            transition: all 0.2s;
+        }
+        .student-list-item:hover, .student-list-item.active {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+        .date-filter-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #f8f9ff;
+            padding: 12px 18px;
+            border-radius: 10px;
+            border: 1px solid #e0e0e0;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .date-input {
+            padding: 8px 12px;
+            font-size: 1rem;
+            border: 2px solid #ccc;
+            border-radius: 8px;
+            outline: none;
+        }
+        .date-input:focus {
+            border-color: #667eea;
+        }
+        .date-group-card {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            border-left: 5px solid #667eea;
+        }
+        .history-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .history-item:last-child { border-bottom: none; }
+        .pill {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-weight: bold;
+            font-size: 0.85rem;
+        }
+        .pill-green { background: #e8f5e9; color: #2e7d32; }
+        .pill-yellow { background: #fffde7; color: #f57f17; }
+        .pill-blue { background: #e3f2fd; color: #1565c0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛡️ Admin Control Panel</h1>
+            <p class="subtitle">Historic Student Progress & Training Logs</p>
+        </div>
+
+        <div style="margin-bottom: 15px;">
+            <a href="/" class="btn btn-secondary">← Back to Main Page</a>
+        </div>
+
+        <div class="admin-layout">
+            <div class="card">
+                <h3>Select Student</h3>
+                <div id="studentListContainer" style="margin-top: 15px;">
+                    {% for student in students %}
+                    <div class="student-list-item" onclick="selectStudent({{ student.id }}, this)">
+                        <div style="font-weight: 700; font-size: 1.1rem; color: #2c3e50;">👤 {{ student.name }}</div>
+                        <div style="font-size: 0.88rem; color: #666; margin-top: 4px;">
+                            Total Drills: <strong>{{ student.total_completions }}</strong><br>
+                            Last Active: {{ student.last_active }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="card" id="historyPanel">
+                <div id="historyPlaceholder" style="text-align: center; padding: 40px; color: #888;">
+                    <h2>👈 Select a student from the left panel to review historical data.</h2>
+                </div>
+                
+                <div id="historyContent" style="display: none;">
+                    <h2 id="selectedStudentHeader" style="color: #2c3e50; margin-bottom: 15px;"></h2>
+
+                    <div class="date-filter-bar">
+                        <label for="historyDatePicker" style="font-weight: 600;">📅 Filter by Date:</label>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="date" id="historyDatePicker" class="date-input" onchange="filterHistoryByDate()">
+                            <button class="btn btn-secondary" onclick="clearDateFilter()" style="padding: 8px 12px; font-size: 0.9rem;">Show All Dates</button>
+                        </div>
+                    </div>
+
+                    <div id="dateGroupsContainer"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentStudentId = null;
+
+        function selectStudent(studentId, element) {
+            currentStudentId = studentId;
+            document.querySelectorAll('.student-list-item').forEach(el => el.classList.remove('active'));
+            if (element) element.classList.add('active');
+
+            // Reset calendar filter when switching students
+            document.getElementById('historyDatePicker').value = '';
+            loadStudentHistory();
+        }
+
+        async function loadStudentHistory(targetDate = null) {
+            if (!currentStudentId) return;
+
+            try {
+                let url = '/admin/student/' + currentStudentId + '/history';
+                if (targetDate) {
+                    url += '?date=' + encodeURIComponent(targetDate);
+                }
+
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('Failed to fetch history');
+                
+                const data = await response.json();
+                
+                document.getElementById('historyPlaceholder').style.display = 'none';
+                document.getElementById('historyContent').style.display = 'block';
+                document.getElementById('selectedStudentHeader').textContent = `📊 Historical Progress: ${data.student_name}`;
+
+                const container = document.getElementById('dateGroupsContainer');
+                container.innerHTML = '';
+
+                const dates = Object.keys(data.sessions);
+                if (dates.length === 0) {
+                    const filterMsg = targetDate ? ` on ${targetDate}` : '';
+                    container.innerHTML = `<p style="color: #888; padding: 20px 0; text-align: center;">No historical training records found${filterMsg}.</p>`;
+                    return;
+                }
+
+                dates.forEach(dateStr => {
+                    const groupCard = document.createElement('div');
+                    groupCard.className = 'date-group-card';
+                    
+                    const groupHeader = document.createElement('h3');
+                    groupHeader.style.marginTop = '0';
+                    groupHeader.style.color = '#333';
+                    groupHeader.textContent = `📅 Session Date: ${dateStr}`;
+                    groupCard.appendChild(groupHeader);
+
+                    const itemsList = data.sessions[dateStr];
+                    itemsList.forEach(item => {
+                        const row = document.createElement('div');
+                        row.className = 'history-item';
+                        
+                        const statusPills = {
+                            'green': '<span class="pill pill-green">🟢 Done</span>',
+                            'yellow': '<span class="pill pill-yellow">🟡 Work Needed</span>',
+                            'blue': '<span class="pill pill-blue">🔵 Excellent</span>'
+                        };
+
+                        row.innerHTML = `
+                            <div>
+                                <strong style="font-size: 1.05rem;">${item.title}</strong>
+                                <div style="font-size: 0.85rem; color: #777;">Completed: ${item.completed_at}</div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <span>⏱️ ${item.actual_time}s</span>
+                                ${statusPills[item.status_color] || ''}
+                            </div>
+                        `;
+                        groupCard.appendChild(row);
+                    });
+
+                    container.appendChild(groupCard);
+                });
+
+            } catch (err) {
+                alert("Error loading history: " + err.message);
+            }
+        }
+
+        function filterHistoryByDate() {
+            const dateVal = document.getElementById('historyDatePicker').value;
+            if (dateVal) {
+                loadStudentHistory(dateVal);
+            }
+        }
+
+        function clearDateFilter() {
+            document.getElementById('historyDatePicker').value = '';
+            loadStudentHistory();
+        }
+    </script>
+</body>
+</html>

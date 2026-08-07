@@ -3,986 +3,832 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <title>Session Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css?v=30">
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-</head>
-<body>
     <style>
-        .menu-btn {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1000;
-            background: white;
-            border: none;
-            border-radius: 12px;
-            width: 52px;
-            height: 52px;
-            font-size: 1.6rem;
-            cursor: pointer;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: transform 0.2s;
-        }
-        .menu-btn:hover { transform: scale(1.08); }
-
-        .menu-overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            z-index: 998;
-        }
-        .menu-overlay.open { display: block; }
-
-        .menu-drawer {
-            position: fixed;
-            top: 0;
-            right: -280px;
-            width: 260px;
-            height: 100vh;
-            background: white;
-            z-index: 999;
-            box-shadow: -4px 0 20px rgba(0,0,0,0.2);
+        .student-check-grid {
             display: flex;
             flex-direction: column;
-            padding: 80px 20px 30px;
-            gap: 8px;
-            transition: right 0.28s ease;
-            border-radius: 20px 0 0 20px;
-            overflow-y: auto;
+            gap: 12px;
+            margin: 20px 0;
         }
-        .menu-drawer.open { right: 0; }
-
-        .menu-drawer a,
-        .menu-drawer button {
-            width: 100%;
-            text-align: left;
-            padding: 11px 16px;
-            border-radius: 10px;
-            font-size: 1.05rem;
-            font-weight: 600;
-            border: none;
+        .student-check-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #f8f9ff;
+            padding: 14px 20px;
+            border-radius: 12px;
+            border: 2px solid #e0e0e0;
+            transition: background 0.2s, border-color 0.2s;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .student-check-card.status-green { background: #e8f5e9; border-color: #4caf50; }
+        .student-check-card.status-yellow { background: #fffde7; border-color: #fbc02d; }
+        .student-check-card.status-blue { background: #e3f2fd; border-color: #1e88e5; }
+        .student-name-label { font-size: 1.3rem; font-weight: 700; color: #2c3e50; }
+        .status-actions { display: flex; align-items: center; gap: 8px; }
+        .status-btn {
+            font-size: 1.4rem;
+            background: #ffffff;
+            border: 2px solid #ddd;
+            border-radius: 8px;
             cursor: pointer;
-            text-decoration: none;
-            display: block;
-            transition: background 0.2s;
+            padding: 6px 12px;
+            transition: transform 0.1s, border-color 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 4px;
         }
-        .menu-drawer a { background: #f0f0f0; color: #333; }
-        .menu-drawer a:hover { background: #e0e0e0; }
-        .menu-drawer .menu-danger {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        .status-btn:active { transform: scale(1.1); }
+        .badge-recorded { font-size: 0.95rem; font-weight: 700; padding: 4px 10px; border-radius: 6px; color: white; }
+        .badge-green { background: #4caf50; }
+        .badge-yellow { background: #fbc02d; color: #333; }
+        .badge-blue { background: #1e88e5; }
+
+        .mode-toggle-btn {
+            font-size: 0.8rem;
+            padding: 3px 10px;
+            border-radius: 6px;
+            border: 1px solid #aaa;
+            background: #fff;
+            cursor: pointer;
+            margin-left: 8px;
+            font-weight: 600;
+        }
+
+        .eval-header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+        }
+
+        .nav-control-bar {
+            display: flex;
+            gap: 15px;
+            margin-top: 25px;
+            justify-content: space-between;
+        }
+        .nav-control-bar .btn { flex: 1; }
+
+        .silent-badge {
+            background: #6c757d;
             color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            display: inline-block;
         }
-        .menu-drawer .menu-danger:hover { opacity: 0.9; }
-        .menu-drawer .menu-neutral {
-            background: #f0f0f0;
-            color: #333;
+
+        .pause-badge {
+            background: #e74c3c;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            display: inline-block;
+            margin-left: 6px;
+            font-weight: bold;
         }
-        .menu-drawer .menu-neutral:hover { background: #e0e0e0; }
-        .menu-sound-opt {
-            width: 100%;
-            text-align: left;
+
+        .task-icon-header {
+            font-size: 3rem;
+            margin-bottom: 5px;
+            display: inline-block;
+        }
+
+        .timer-large {
+            font-size: 3.5rem;
+            font-weight: 800;
+            color: #ffffff !important;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+            margin: 10px 0 5px 0;
+            transition: color 0.3s ease;
+        }
+        .timer-yellow { color: #ecc94b !important; text-shadow: 0 2px 10px rgba(236, 201, 75, 0.3); }
+        .timer-red { color: #e53e3e !important; text-shadow: 0 2px 10px rgba(229, 62, 62, 0.4); }
+
+        .workspace-layout {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+            transition: all 0.3s ease;
+        }
+        .workspace-layout.has-sidebar { grid-template-columns: 2fr 1fr; }
+        @media (max-width: 850px) {
+            .workspace-layout.has-sidebar { grid-template-columns: 1fr; }
+        }
+
+        .upcoming-panel {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border: 2px solid #e0e0e0;
+            display: none;
+            height: fit-content;
+        }
+        .upcoming-task-item {
             padding: 10px 14px;
             border-radius: 8px;
-            border: 2px solid transparent;
-            background: #f8f8f8;
-            font-size: 1.05rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .menu-sound-opt:hover { background: #e8e8e8; }
-        .menu-sound-opt.active { border-color: #667eea; background: #f0f4ff; }
-
-        /* Sound flyout */
-        .sound-menu-wrap {
-            position: relative;
-        }
-        .sound-flyout {
-            display: none;
-            position: absolute;
-            left: 0;
-            top: 100%;
-            margin-top: 4px;
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.18);
-            padding: 8px;
-            flex-direction: column;
-            gap: 6px;
-            min-width: 100%;
-            z-index: 1200;
-        }
-        .sound-menu-wrap:hover .sound-flyout {
+            background: #f8f9fa;
+            margin-bottom: 8px;
+            border-left: 4px solid #ccc;
+            font-size: 0.95rem;
             display: flex;
-        }
-
-        /* Task picker modal */
-        .modal-overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.5);
-            z-index: 1100;
             align-items: center;
-            justify-content: center;
+            gap: 10px;
         }
-        .modal-overlay.open { display: flex; }
-        .modal {
-            background: white;
-            border-radius: 16px;
-            padding: 28px;
-            width: 90%;
-            max-width: 420px;
-            max-height: 80vh;
-            overflow-y: auto;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        .upcoming-task-item.active { background: #eef2ff; border-left-color: #667eea; font-weight: bold; }
+        .upcoming-task-item.completed { opacity: 0.5; text-decoration: line-through; }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
         }
-        .modal h3 { margin: 0 0 18px; font-size: 1.3rem; }
-        .modal-task-list { display: flex; flex-direction: column; gap: 10px; }
-        .modal-task-btn {
-            width: 100%;
-            text-align: left;
-            padding: 14px 16px;
-            border-radius: 10px;
-            border: 2px solid #e0e0e0;
-            background: #fafafa;
-            font-size: 1.05rem;
-            font-weight: 600;
+        .student-summary-card {
+            background: #ffffff;
+            border-radius: 14px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border-top: 5px solid #667eea;
+        }
+        .student-name-clickable {
+            margin-top: 0;
+            color: #2c3e50;
+            font-size: 1.5rem;
             cursor: pointer;
-            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            user-select: none;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #f0f0f0;
         }
-        .modal-task-btn:hover { border-color: #667eea; background: #f0f4ff; }
-        .modal-task-btn.danger:hover { border-color: #f5576c; background: #fff0f2; }
-        .modal-cancel {
-            margin-top: 16px;
-            width: 100%;
-            padding: 12px;
-            border-radius: 10px;
-            border: none;
-            background: #e0e0e0;
+        .student-name-clickable:hover { color: #667eea; }
+        .summary-stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
             font-size: 1.05rem;
-            font-weight: 600;
-            cursor: pointer;
         }
-        .modal-cancel:hover { background: #d0d0d0; }
+        .summary-stat-row:last-child { border-bottom: none; }
+        .pill { padding: 2px 8px; border-radius: 12px; font-weight: bold; font-size: 0.9rem; }
+        .detailed-task-list {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 2px dashed #e0e0e0;
+            display: none;
+        }
+        .detailed-task-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f5f5f5;
+            font-size: 0.95rem;
+        }
     </style>
-
-    <!-- Hamburger button -->
-    <button class="menu-btn" onclick="toggleMenu()" id="menuBtn">☰</button>
-
-    <!-- Click-outside overlay -->
-    <div class="menu-overlay" id="menuOverlay" onclick="closeMenu()"></div>
-
-    <!-- Drawer -->
-    <div class="menu-drawer" id="menuDrawer">
-        <a href="/results/{{ student_id }}">📊 View Results</a>
-        <a href="/tasks/view/{{ student_id }}">📋 View My Tasks</a>
-        <a href="/tasks/export/{{ student_id }}">⬇️ Download My CSV</a>
-        <a href="/export/user/{{ student_id }}">💾 Export My Data</a>
-        <a href="/">🏠 Home</a>
-        <a href="/users">👥 All Users</a>
-        <div class="menu-divider"></div>
-        <button class="menu-neutral" onclick="closeMenu(); pauseTask()">⏸️ Pause</button>
-        <button class="menu-neutral" onclick="toggleAutoAdvance()" id="autoAdvanceBtn">⏭️ Auto-Advance: Off</button>
-        <button class="menu-neutral" onclick="closeMenu(); cancelTask()">❌ Cancel Task</button>
-        <button class="menu-neutral" onclick="closeMenu(); adminAuth(showOverwriteUpload)">📋 Upload New CSV</button>
-        <button class="menu-neutral" onclick="closeMenu(); adminAuth(showUploadForm)">➕ Add a Task</button>
-        <button class="menu-neutral" onclick="closeMenu(); adminAuth(openModifyPicker)">✏️ Modify a Task</button>
-        <button class="menu-neutral" onclick="closeMenu(); adminAuth(openRemovePicker)">🗑️ Remove a Task</button>
-        <div class="menu-divider"></div>
-        <button class="menu-danger" onclick="closeMenu(); adminAuth(resetSession)">🔄 Reset Session</button>
-        <button class="menu-danger" onclick="closeMenu(); adminAuth(clearSession)">🧹 Clear Session</button>
-        <button class="menu-danger" onclick="closeMenu(); adminAuth(clearTasksKeepResults)">📋 Clear Tasks (Keep Results)</button>
-        <button class="menu-danger" onclick="closeMenu(); adminAuth(clearAllUserData)">🗑️ Clear All Data for User</button>
-        <div class="menu-divider"></div>
-        <div class="sound-menu-wrap" onmouseenter="showFlyout()" onmouseleave="hideFlyout()">
-            <button class="menu-neutral" id="soundMenuBtn"><span id="soundLabel">🔕 Sound: Off</span> ▸</button>
-            <div class="sound-flyout" id="soundSubmenu">
-                <button class="menu-sound-opt" id="sndNone"  onclick="setSound('none')">🔕 No Sound</button>
-                <button class="menu-sound-opt" id="sndDing"  onclick="setSound('ding')">🔔 Ding</button>
-                <button class="menu-sound-opt" id="sndChime" onclick="setSound('chime')">🎵 Chime</button>
-                <button class="menu-sound-opt" id="sndBell"  onclick="setSound('bell')">🔔 Bell</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Task picker modal -->
-    <div class="modal-overlay" id="taskPickerModal">
-        <div class="modal">
-            <h3 id="taskPickerTitle">Select a Task</h3>
-            <div class="modal-task-list" id="taskPickerList"></div>
-            <button class="modal-cancel" onclick="closeTaskPicker()">Cancel</button>
-        </div>
-    </div>
-
+</head>
+<body>
     <div class="container">
         <div class="header">
-            <h1>🥋 {{ student_name }}'s Tasks</h1>
-            {% if streak > 0 %}
-            <div class="streak-badge">🔥 {{ streak }} Day Streak!</div>
+            <h1>🥋 Active Training Session</h1>
+            <p class="subtitle" id="sessionStudentsSubtitle">
+                Students: 
+                {% for s in students %}
+                    <strong>{{ s.name if s.name is defined else s['name'] }}</strong>{% if not loop.last %}, {% endif %}
+                {% endfor %}
+            </p>
+            {% if hide_timer %}
+                <span class="silent-badge">🤫 Silent Background Timer</span>
             {% endif %}
-        </div>
-
-        <div class="nav-buttons">
-            {% if tasks and not active_session %}
-            <button onclick="startAutoMode()" class="btn btn-primary btn-large" id="autoModeBtn">
-                ▶️ Begin All Tasks
-            </button>
+            {% if auto_advance %}
+                <span class="silent-badge" style="background:#e67e22; margin-left:6px;">⏩ Auto-Advance Active</span>
             {% endif %}
+            {% if enable_chime %}
+                <span class="silent-badge" style="background:#27ae60; margin-left:6px;">🔔 Audio Chime ON</span>
+            {% endif %}
+            <span class="pause-badge" id="pauseStatusBadge" style="display: none;">⏸️ SESSION PAUSED</span>
         </div>
 
         {% if not tasks %}
-        <div class="card">
-            <h2>Upload Your Tasks</h2>
-            <p>Upload a CSV file with your karate tasks to get started!</p>
-            <p class="small-text">CSV format: task, description, estimated_time</p>
-            
-            <form id="uploadForm" class="upload-form">
-                <input type="file" id="fileInput" accept=".csv" required class="file-input">
-                <button type="submit" class="btn btn-primary">Upload Tasks 📤</button>
-            </form>
+        <div class="card" style="text-align: center;">
+            <h2>No Tasks Active for this Session</h2>
+            <p>Please return to the main page and upload a CSV file when creating a session.</p>
+            <a href="/" class="btn btn-primary" style="display: inline-block; margin-top: 15px;">← Go Back to Main Page</a>
         </div>
         {% else %}
-        
-        {% if active_session %}
-        <div class="card active-task-card" id="activeTaskCard">
-            <h2>🎯 Active Task</h2>
-            <h3 class="task-title">{{ active_session.task_title }}</h3>
-            {% if active_session.count %}
-            <p class="count-badge" style="display:inline-block; margin-bottom:10px;">🔢 {{ active_session.count }}x</p>
-            {% endif %}
-            {% if active_session.task_description %}
-            <p class="task-description-active">{{ active_session.task_description }}</p>
-            {% endif %}
 
-            {% if active_session.estimated_time > 0 %}
-            <div class="timer" id="timer">00:00</div>
-            <div class="timer-progress" id="timerProgress"></div>
-            {% endif %}
-
-            <button
-                class="btn btn-success btn-large"
-                onclick="finishTask()"
-                id="finishBtn"
-            >
-                ✅ Finished!
-            </button>
-        </div>
-        {% endif %}
-
-
-
-        <div id="uploadFormCard" class="card" style="display: none;">
-            <h3>Upload More Tasks</h3>
-            <p class="small-text">CSV format: task, description, estimated_time</p>
-            <form id="uploadFormExtra" class="upload-form">
-                <input type="file" id="fileInputExtra" accept=".csv" required class="file-input">
-                <button type="submit" class="btn btn-primary">Upload 📤</button>
-                <button type="button" onclick="hideUploadForm()" class="btn btn-secondary">Cancel</button>
-            </form>
-        </div>
-
-        <div id="overwriteUploadCard" class="card" style="display: none; border: 2px solid #f5576c;">
-            <h3>📋 Upload New CSV</h3>
-            <p class="small-text">This will replace your current task list and clear the active session. Completion history is preserved.</p>
-            <form id="overwriteUploadForm" class="upload-form">
-                <input type="file" id="fileInputOverwrite" accept=".csv" required class="file-input">
-                <button type="submit" class="btn btn-danger">Replace Task List 📤</button>
-                <button type="button" onclick="hideOverwriteUpload()" class="btn btn-secondary">Cancel</button>
-            </form>
-        </div>
-
-        <div class="tasks-grid">
-            {% for task in tasks %}
-            <div class="task-card" data-task-id="{{ task.id }}">
-                <div class="task-header-row">
-                    <h3>{{ task.title }}</h3>
-                    <button onclick="editTask({{ task.id }})" class="btn-icon" title="Edit task">
-                        ✏️
+        <div class="workspace-layout" id="workspaceLayout">
+            <div class="card active-task-card" id="activeTaskCard">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span id="taskIndexBadge" style="font-size: 1.1rem; opacity:0.8;">Task 1 of {{ tasks|length }}</span>
+                    <button class="btn btn-secondary" onclick="toggleUpcomingPanel()" id="upcomingToggleBtn" style="padding: 4px 12px; font-size: 0.85rem;">
+                        📋 Show Upcoming Tasks
                     </button>
                 </div>
-                {% if task.description %}
-                <p class="task-description">{{ task.description }}</p>
-                {% endif %}
-                <div class="task-meta">
-                    <span class="time-badge">{% if task.estimated_time > 0 %}⏱️ ~{{ task.estimated_time }} sec{% else %}🔓 No Countdown{% endif %}</span>
-                    <span class="difficulty-badge">
-                        {% if task.difficulty_weight <= 0.5 %}🟢 Easy
-                        {% elif task.difficulty_weight <= 1.0 %}🟡 Medium
-                        {% elif task.difficulty_weight <= 1.5 %}🟠 Hard
-                        {% else %}🔴 Expert{% endif %}
-                    </span>
-                    <span class="count-badge">🔢 {{ task.count }}x</span>
+
+                <div style="text-align: center; margin-top: 10px;">
+                    <span id="taskIcon" class="task-icon-header">{{ tasks[0].icon or '🥋' }}</span>
+                    <h2 id="taskTitle" class="task-title" style="margin-top:2px;">{{ tasks[0].title }}</h2>
+                    <p id="taskDescription" class="task-description-active">{{ tasks[0].description }}</p>
                 </div>
-                
-                {% if not active_session %}
-                <button 
-                    class="btn btn-primary btn-large"
-                    onclick="startTask({{ task.id }}, {{ task.estimated_time }})"
-                >
-                    🚀 Start
-                </button>
-                {% elif active_session.task_id != task.id %}
-                <button class="btn btn-disabled" disabled>
-                    Finish current task first
-                </button>
+
+                {% if not hide_timer %}
+                <div class="timer timer-large" id="timerDisplay">0s</div>
+                <div class="timer-progress" id="timerProgress">Active timer</div>
                 {% endif %}
+
+                <div class="eval-header-bar">
+                    <h3 style="margin: 0;">Student Evaluation:</h3>
+                    <button class="btn btn-secondary" onclick="addStudentMidSession()" style="padding: 6px 14px; font-size: 0.95rem;">➕ Add Student</button>
+                </div>
+
+                <div class="student-check-grid" id="studentCheckGrid">
+                    {% for s in students %}
+                    {% set student_id = s.id if s.id is defined else s['id'] %}
+                    {% set student_name = s.name if s.name is defined else s['name'] %}
+                    <div class="student-check-card" id="card-student-{{ student_id }}">
+                        <div>
+                            <span class="student-name-label">👤 {{ student_name }}</span>
+                            <button class="mode-toggle-btn" id="toggle-mode-{{ student_id }}" onclick="toggleStudentMode({{ student_id }})">🌱 Basic Scoring</button>
+                        </div>
+                        
+                        <div class="status-actions" id="actions-student-{{ student_id }}">
+                            <button class="status-btn" onclick="recordStudentStatus({{ student_id }}, 'green')" title="Green: Done">🟢 Done</button>
+                            <button class="status-btn" onclick="recordStudentStatus({{ student_id }}, 'yellow')" title="Yellow: Needs Work">🟡 Work</button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="nav-control-bar">
+                    <button class="btn btn-secondary" onclick="prevTask()">⏮️ Previous</button>
+                    <button class="btn btn-warning" onclick="restartTask()">🔄 Restart</button>
+                    <button class="btn btn-primary" id="nextBtn" onclick="nextTask()">⏭️ Next</button>
+                </div>
             </div>
-            {% endfor %}
+
+            <div class="upcoming-panel" id="upcomingPanel">
+                <h3 style="margin-top: 0; font-size: 1.2rem; color: #2c3e50; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px;">
+                    📋 Training Sequence
+                </h3>
+                <div id="upcomingTasksList" style="margin-top: 12px;"></div>
+            </div>
         </div>
+
+        <div class="card" id="sessionReportCard" style="display: none;">
+            <h2 style="text-align: center; font-size: 2.2rem; color: #2c3e50; margin-bottom: 5px;">🏆 Session Performance Summary Report</h2>
+            <p id="sessionReportDate" style="text-align: center; font-weight: 600; color: #667eea; font-size: 1.1rem; margin-bottom: 10px;"></p>
+            <p style="text-align: center; color: #666; margin-bottom: 25px;">💡 Click on any student's name to see their most recent task breakdown!</p>
+            
+            <div class="summary-grid" id="summaryGrid"></div>
+
+            <div style="text-align: center; margin-top: 30px;">
+                <a href="/" class="btn btn-primary btn-large" style="display: inline-block;">🏠 Start New Session</a>
+            </div>
+        </div>
+
         {% endif %}
+
+        <div style="text-align: center; margin-top: 20px;">
+            <a href="/" class="btn btn-secondary" style="display:inline-block;">🏠 End Session / Home</a>
+        </div>
     </div>
 
     <script>
-        const studentId = {{ student_id }};
-        let timerInterval;
-        let autoMode = false;
-        let autoModeTaskQueue = [];
-        let currentTaskEstimatedTime = 0;
-        let elapsedSeconds = 0;
-        let allTasks = {{ tasks | tojson }};
-        let currentTaskId = {% if active_session %}{{ active_session.task_id }}{% else %}null{% endif %};
-        
-        {% if active_session %}
-        elapsedSeconds = {{ active_session.elapsed }};
-        currentTaskEstimatedTime = {{ active_session.estimated_time }};
-        {% if active_session.estimated_time > 0 %}
-        timerInterval = setInterval(updateTimer, 1000);
-        updateTimer();
-        {% endif %}
-        window.scrollTo({top: 0, behavior: 'smooth'});
-        {% endif %}
+        const tasks = {{ tasks | tojson }};
+        let students = {{ students | tojson }};
+        const hideTimer = {{ 'true' if hide_timer else 'false' }};
+        const autoAdvance = {{ 'true' if auto_advance else 'false' }};
+        const enableChime = {{ 'true' if enable_chime else 'false' }};
+        const sessionId = "{{ session_id }}";
+        let studentIdsArray = "{{ student_ids_str }}".split(",").filter(x => x.length > 0);
 
-        let advancing = false;
-
-        let currentSound = localStorage.getItem('karateSound') || 'none';
-
-        function toggleSoundMenu() {} // no-op, now handled by CSS hover
-
-        function setSound(sound) {
-            currentSound = sound;
-            localStorage.setItem('karateSound', sound);
-            updateSoundUI();
-            playDing();
-        }
-
-        function updateSoundUI() {
-            const labels = { none: '🔕 Sound: Off', ding: '🔔 Sound: Ding', chime: '🎵 Sound: Chime', bell: '🔔 Sound: Bell' };
-            document.getElementById('soundLabel').textContent = labels[currentSound] || '🔔 Sound';
-            ['none','ding','chime','bell'].forEach(function(s) {
-                const el = document.getElementById('snd' + s.charAt(0).toUpperCase() + s.slice(1));
-                if (el) el.classList.toggle('active', s === currentSound);
-            });
-        }
-
-        // Init sound UI on page load
-        updateSoundUI();
-
-        function playDing() {
-            if (currentSound === 'none') return;
-            try {
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                if (currentSound === 'ding') {
-                    // iPhone-style ding: bright attack, warm decay
-                    const osc1 = ctx.createOscillator(), g1 = ctx.createGain();
-                    osc1.connect(g1); g1.connect(ctx.destination);
-                    osc1.frequency.setValueAtTime(1318, ctx.currentTime);
-                    osc1.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15);
-                    g1.gain.setValueAtTime(0.6, ctx.currentTime);
-                    g1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.4);
-                    osc1.start(); osc1.stop(ctx.currentTime + 1.4);
-
-                    const osc2 = ctx.createOscillator(), g2 = ctx.createGain();
-                    osc2.connect(g2); g2.connect(ctx.destination);
-                    osc2.frequency.setValueAtTime(659, ctx.currentTime);
-                    g2.gain.setValueAtTime(0.3, ctx.currentTime);
-                    g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.8);
-                    osc2.start(); osc2.stop(ctx.currentTime + 1.8);
-
-                } else if (currentSound === 'chime') {
-                    // Three ascending tones, like a doorbell chime
-                    [[523, 0.0], [659, 0.25], [784, 0.5]].forEach(function(note) {
-                        const osc = ctx.createOscillator(), g = ctx.createGain();
-                        osc.connect(g); g.connect(ctx.destination);
-                        osc.type = 'sine';
-                        osc.frequency.setValueAtTime(note[0], ctx.currentTime + note[1]);
-                        g.gain.setValueAtTime(0.0, ctx.currentTime + note[1]);
-                        g.gain.linearRampToValueAtTime(0.5, ctx.currentTime + note[1] + 0.02);
-                        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + note[1] + 1.0);
-                        osc.start(ctx.currentTime + note[1]);
-                        osc.stop(ctx.currentTime + note[1] + 1.0);
-                    });
-
-                } else if (currentSound === 'bell') {
-                    // Deep resonant bell with harmonics
-                    const osc1 = ctx.createOscillator(), g1 = ctx.createGain();
-                    osc1.connect(g1); g1.connect(ctx.destination);
-                    osc1.type = 'sine';
-                    osc1.frequency.setValueAtTime(440, ctx.currentTime);
-                    g1.gain.setValueAtTime(0.7, ctx.currentTime);
-                    g1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 2.5);
-                    osc1.start(); osc1.stop(ctx.currentTime + 2.5);
-
-                    const osc2 = ctx.createOscillator(), g2 = ctx.createGain();
-                    osc2.connect(g2); g2.connect(ctx.destination);
-                    osc2.type = 'sine';
-                    osc2.frequency.setValueAtTime(1174, ctx.currentTime);
-                    g2.gain.setValueAtTime(0.3, ctx.currentTime);
-                    g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2);
-                    osc2.start(); osc2.stop(ctx.currentTime + 1.2);
-                }
-            } catch (e) { /* audio not supported */ }
-        }
-
-        let autoAdvance = localStorage.getItem('karateAutoAdvance') === 'true';
-
-        function toggleAutoAdvance() {
-            autoAdvance = !autoAdvance;
-            localStorage.setItem('karateAutoAdvance', autoAdvance);
-            updateAutoAdvanceUI();
-        }
-
-        function updateAutoAdvanceUI() {
-            const btn = document.getElementById('autoAdvanceBtn');
-            if (btn) btn.textContent = autoAdvance ? '⏭️ Auto-Advance: On' : '⏭️ Auto-Advance: Off';
-        }
-
-        // Init on load
-        updateAutoAdvanceUI();
-
-        async function updateTimer() {
-            elapsedSeconds++;
-
-            const timerEl = document.getElementById('timer');
-            if (timerEl) {
-                if (elapsedSeconds <= currentTaskEstimatedTime) {
-                    const remaining = currentTaskEstimatedTime - elapsedSeconds;
-                    timerEl.textContent = remaining + 's';
-                    timerEl.style.color = '';
-                } else {
-                    const overtime = elapsedSeconds - currentTaskEstimatedTime;
-                    if (overtime === 1) {
-                        playDing();
-                        if (autoAdvance) {
-                            clearInterval(timerInterval);
-                            await finishTask();
-                            return;
-                        }
-                    }
-                    timerEl.textContent = '+' + overtime + 's';
-                    timerEl.style.color = '#ff6b6b';
-                }
-            }
-
-            updateProgressBar();
-        }
-        
-
-        function editTask(taskId) {
-            window.location.href = '/task/' + taskId + '/edit';
-        }
-
-        async function startTask(taskId, estimatedTime) {
-            try {
-                const response = await fetch('/task/start/' + studentId + '/' + taskId, {
-                    method: 'POST'
-                });
-                
-                if (response.ok) {
-                    currentTaskEstimatedTime = estimatedTime;
-                    currentTaskId = taskId;
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                    window.location.reload();
-                } else {
-                    const error = await response.json();
-                    alert(error.detail || 'Error starting task');
-                }
-            } catch (error) {
-                alert('Error starting task: ' + error.message);
-            }
-        }
-
-        async function startAutoMode() {
-            if (!confirm('Start all tasks in sequence? Each task will run for its estimated time and automatically advance to the next.')) {
-                return;
-            }
-            
-            autoMode = true;
-            autoModeTaskQueue = allTasks.slice();
-            
-            if (autoModeTaskQueue.length === 0) {
-                alert('No tasks available');
-                return;
-            }
-            
-            const autoBtn = document.getElementById('autoModeBtn');
-            if (autoBtn) autoBtn.style.display = 'none';
-            
-            await startNextAutoTask();
-        }
-
-        async function startNextAutoTask() {
-            if (autoModeTaskQueue.length === 0) {
-                autoMode = false;
-                alert('🎉 All tasks completed! Great job!');
-                confetti({
-                    particleCount: 200,
-                    spread: 100,
-                    origin: { y: 0.6 }
-                });
-                setTimeout(function() { window.location.reload(); }, 2000);
-                return;
-            }
-            
-            const task = autoModeTaskQueue.shift();
-            currentTaskEstimatedTime = task.estimated_time;
-            
-            await startTask(task.id, task.estimated_time);
-        }
-
-        async function autoFinishTask() {
-            await finishTask(true);
-        }
-
-        async function finishAndAdvance() {
-            try {
-                const response = await fetch('/task/finish/' + studentId, { method: 'POST' });
-                if (!response.ok) return;
-                const data = await response.json();
-
-                confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
-
-                const nextTask = getNextTask();
-                if (nextTask) {
-                    setTimeout(async function() {
-                        await startTask(nextTask.id, nextTask.estimated_time);
-                    }, 1000);
-                } else {
-                    setTimeout(function() { window.location.reload(); }, 1500);
-                }
-            } catch (error) {
-                window.location.reload();
-            }
-        }
-
-        function getNextTask() {
-            if (!currentTaskId || allTasks.length === 0) return null;
-            const currentIndex = allTasks.findIndex(t => t.id === currentTaskId);
-            if (currentIndex === -1 || currentIndex === allTasks.length - 1) return null;
-            return allTasks[currentIndex + 1];
-        }
-
-        function getPrevTask() {
-            if (!currentTaskId || allTasks.length === 0) return null;
-            const currentIndex = allTasks.findIndex(t => t.id === currentTaskId);
-            if (currentIndex <= 0) return null;
-            return allTasks[currentIndex - 1];
-        }
-
-        async function finishTask(isAutoMode) {
-            if (typeof isAutoMode === 'undefined') isAutoMode = autoMode;
-
-            playDing();
-
-            const btn = document.getElementById('finishBtn');
-            btn.disabled = true;
-            btn.textContent = 'Saving...';
-
-            try {
-                const response = await fetch('/task/finish/' + studentId, { method: 'POST' });
-
-                if (response.ok) {
-                    clearInterval(timerInterval);
-                    confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
-                    if (isAutoMode) {
-                        setTimeout(function() { startNextAutoTask(); }, 1000);
-                    } else {
-                        const nextTask = getNextTask();
-                        if (nextTask) {
-                            setTimeout(async function() {
-                                await startTask(nextTask.id, nextTask.estimated_time);
-                            }, 1000);
-                        } else {
-                            setTimeout(function() { window.location.reload(); }, 1500);
-                        }
-                    }
-                } else {
-                    const error = await response.json();
-                    alert(error.detail || 'Error finishing task');
-                    btn.disabled = false;
-                    btn.textContent = '✅ Finished!';
-                }
-            } catch (error) {
-                alert('Error finishing task: ' + error.message);
-                btn.disabled = false;
-                btn.textContent = '✅ Finished!';
-            }
-        }
-
-        async function handleUpload(event, inputId) {
-            event.preventDefault();
-            
-            const fileInput = document.getElementById(inputId);
-            const file = fileInput.files[0];
-            
-            if (!file) {
-                alert('Please select a file');
-                return;
-            }
-            
-            const formData = new FormData();
-            formData.append('file', file);
-            
-            try {
-                const response = await fetch('/upload-tasks/' + studentId, {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    const parts = [];
-                    if (data.tasks_added) parts.push(data.tasks_added + ' added');
-                    if (data.tasks_updated) parts.push(data.tasks_updated + ' updated');
-                    if (data.tasks_archived) parts.push(data.tasks_archived + ' archived');
-                    alert('✅ CSV uploaded! ' + (parts.length ? parts.join(', ') : 'No changes.'));
-                    window.location.reload();
-                } else {
-                    alert('Error uploading file');
-                }
-            } catch (error) {
-                alert('Error uploading file: ' + error.message);
-            }
-        }
-
-        let adminUnlocked = false;
-
-        function adminAuth(action) {
-            if (adminUnlocked) { action(); return; }
-            const pw = prompt('🔒 Enter admin password:');
-            if (pw === null) return; // cancelled
-            if (pw === 'admin') {
-                adminUnlocked = true;
-                action();
-            } else {
-                alert('❌ Incorrect password.');
-            }
-        }
-
-        function showUploadForm() {
-            document.getElementById('uploadFormCard').style.display = 'block';
-        }
-
-        function hideUploadForm() {
-            document.getElementById('uploadFormCard').style.display = 'none';
-        }
-
-        function showOverwriteUpload() {
-            document.getElementById('overwriteUploadCard').style.display = 'block';
-            window.scrollTo({top: 0, behavior: 'smooth'});
-        }
-
-        function hideOverwriteUpload() {
-            document.getElementById('overwriteUploadCard').style.display = 'none';
-        }
-
-        async function handleOverwriteUpload(event) {
-            event.preventDefault();
-            const file = document.getElementById('fileInputOverwrite').files[0];
-            if (!file) { alert('Please select a file'); return; }
-
-            const formData = new FormData();
-            formData.append('file', file);
-            try {
-                const response = await fetch('/upload-tasks/overwrite/' + studentId, { method: 'POST', body: formData });
-                if (!response.ok) { alert('Error uploading CSV'); return; }
-                const data = await response.json();
-                alert('✅ Task list replaced! ' + data.tasks_added + ' added, ' + data.tasks_updated + ' updated.');
-                window.location.reload();
-            } catch(e) {
-                alert('Error: ' + e.message);
-            }
-        }
-
-        function updateProgressBar() {
-            const progressEl = document.getElementById('timerProgress');
-            if (progressEl && currentTaskEstimatedTime > 0) {
-                if (elapsedSeconds <= currentTaskEstimatedTime) {
-                    const remaining = currentTaskEstimatedTime - elapsedSeconds;
-                    const percentage = Math.round((elapsedSeconds / currentTaskEstimatedTime) * 100);
-                    progressEl.textContent = percentage + '% complete (' + remaining + 's remaining)';
-                    progressEl.style.color = '';
-                    progressEl.style.fontWeight = '';
-                } else {
-                    const overtime = elapsedSeconds - currentTaskEstimatedTime;
-                    progressEl.textContent = 'Estimated time passed — +' + overtime + 's over · click Finished when done';
-                    progressEl.style.color = '#ff6b6b';
-                    progressEl.style.fontWeight = 'bold';
-                }
-            }
-        }
-
-        {% if not active_session %}
-        var uploadForm = document.getElementById('uploadForm');
-        if (uploadForm) {
-            uploadForm.addEventListener('submit', function(e) { handleUpload(e, 'fileInput'); });
-        }
-        {% endif %}
-        
-        var uploadFormExtra = document.getElementById('uploadFormExtra');
-        if (uploadFormExtra) {
-            uploadFormExtra.addEventListener('submit', function(e) { handleUpload(e, 'fileInputExtra'); });
-        }
-
-        var overwriteUploadForm = document.getElementById('overwriteUploadForm');
-        if (overwriteUploadForm) {
-            overwriteUploadForm.addEventListener('submit', handleOverwriteUpload);
-        }
-
-        async function cancelTask() {
-            clearInterval(timerInterval);
-            try {
-                const response = await fetch('/task/abandon/' + studentId, { method: 'POST' });
-                if (response.ok) {
-                    const nextTask = getNextTask();
-                    if (nextTask) {
-                        await startTask(nextTask.id, nextTask.estimated_time);
-                    } else {
-                        window.location.reload();
-                    }
-                } else {
-                    const error = await response.json();
-                    alert(error.detail || 'Error cancelling task');
-                    timerInterval = setInterval(updateTimer, 1000);
-                }
-            } catch (error) {
-                alert('Error cancelling task: ' + error.message);
-                timerInterval = setInterval(updateTimer, 1000);
-            }
-        }
-
-        async function resetCurrentTask() {
-            if (!currentTaskId) return;
-            clearInterval(timerInterval);
-            // Cancel the current session without recording (clean slate)
-            try {
-                await fetch('/task/cancel/' + studentId, { method: 'POST' });
-            } catch(e) {}
-            // Restart the same task
-            await startTask(currentTaskId, currentTaskEstimatedTime);
-        }
-
-        async function goToPrevTask() {
-            if (!currentTaskId) return;
-            clearInterval(timerInterval);
-            const prevTask = getPrevTask();
-            try {
-                const response = await fetch('/task/abandon/' + studentId, { method: 'POST' });
-                if (response.ok) {
-                    if (prevTask) {
-                        await startTask(prevTask.id, prevTask.estimated_time);
-                    } else {
-                        window.location.reload();
-                    }
-                } else {
-                    timerInterval = setInterval(updateTimer, 1000);
-                }
-            } catch(e) {
-                timerInterval = setInterval(updateTimer, 1000);
-            }
-        }
-
-        async function resetSession() {
-            try {
-                const response = await fetch('/student/' + studentId + '/reset', { method: 'POST' });
-                if (response.ok) {
-                    window.location.reload();
-                } else {
-                    const error = await response.json();
-                    alert(error.detail || 'Error resetting session');
-                }
-            } catch (error) {
-                alert('Error resetting session: ' + error.message);
-            }
-        }
-
-        async function clearSession() {
-            try {
-                const response = await fetch('/student/' + studentId + '/reset', { method: 'POST' });
-                if (response.ok) {
-                    window.location.reload();
-                } else {
-                    const error = await response.json();
-                    alert(error.detail || 'Error clearing session');
-                }
-            } catch (error) {
-                alert('Error clearing session: ' + error.message);
-            }
-        }
-
-        async function clearTasksKeepResults() {
-            try {
-                // Archive all active tasks (keeps history intact for Results) and clear any active session
-                await fetch('/student/' + studentId + '/reset', { method: 'POST' });
-                const response = await fetch('/tasks/archive-all/' + studentId, { method: 'POST' });
-                if (response.ok) {
-                    alert('✅ Tasks cleared! Your Results history is untouched.');
-                    window.location.reload();
-                } else {
-                    const error = await response.json();
-                    alert(error.detail || 'Error clearing tasks');
-                }
-            } catch (error) {
-                alert('Error clearing tasks: ' + error.message);
-            }
-        }
-        async function clearAllUserData() {
-            try {
-                const formData = new FormData();
-                formData.append('student_id', studentId);
-                const response = await fetch('/tasks/clear', { method: 'POST', body: formData });
-                if (response.ok) {
-                    window.location.href = '/';
-                } else {
-                    const error = await response.json();
-                    alert(error.detail || 'Error clearing user data');
-                }
-            } catch (error) {
-                alert('Error clearing user data: ' + error.message);
-            }
-        }
-
+        let currentTaskIdx = 0;
+        let taskElapsedSeconds = 0;
+        let timerInterval = null;
         let isPaused = false;
+        let isUpcomingVisible = false;
+        let studentCompletions = {};
+        let studentAdvancedScoringModes = {};
 
-        function pauseTask() {
-            closeMenu();
-            const btn = document.getElementById('finishBtn');
-            if (!btn) return;
-            if (!isPaused) {
-                // Pause: stop the timer, change button to Paused
-                clearInterval(timerInterval);
-                timerInterval = null;
-                isPaused = true;
-                btn.textContent = '▶️ Paused — tap to resume';
-                btn.onclick = pauseTask;
-            } else {
-                // Resume: restart the timer, restore button
-                isPaused = false;
-                btn.textContent = '✅ Finished!';
-                btn.onclick = function() { finishTask(); };
-                timerInterval = setInterval(updateTimer, 1000);
+        function playChimeSound() {
+            if (!enableChime) return;
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return;
+                const ctx = new AudioCtx();
+                
+                const now = ctx.currentTime;
+                const osc1 = ctx.createOscillator();
+                const osc2 = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                osc1.type = 'sine';
+                osc2.type = 'sine';
+
+                osc1.frequency.setValueAtTime(659.25, now);
+                osc2.frequency.setValueAtTime(880.00, now + 0.1);
+
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+
+                osc1.connect(gain);
+                osc2.connect(gain);
+                gain.connect(ctx.destination);
+
+                osc1.start(now);
+                osc2.start(now + 0.1);
+                osc1.stop(now + 0.6);
+                osc2.stop(now + 0.6);
+            } catch (e) {
+                console.log("Audio chime error:", e);
             }
         }
 
-        function openModifyPicker() {
-            if (!allTasks.length) { alert('No tasks to modify.'); return; }
-            document.getElementById('taskPickerTitle').textContent = '✏️ Which task to modify?';
-            const list = document.getElementById('taskPickerList');
-            list.innerHTML = '';
-            allTasks.forEach(function(task) {
-                const btn = document.createElement('button');
-                btn.className = 'modal-task-btn';
-                btn.textContent = task.title;
-                btn.onclick = function() {
-                    closeTaskPicker();
-                    window.location.href = '/task/' + task.id + '/edit?student_id={{ student_id }}';
-                };
-                list.appendChild(btn);
-            });
-            document.getElementById('taskPickerModal').classList.add('open');
+        function toggleStudentMode(studentId) {
+            studentAdvancedScoringModes[studentId] = !studentAdvancedScoringModes[studentId];
+            renderStudentActions(studentId);
         }
 
-        function openRemovePicker() {
-            if (!allTasks.length) { alert('No tasks to remove.'); return; }
-            document.getElementById('taskPickerTitle').textContent = '🗑️ Which task to remove?';
-            const list = document.getElementById('taskPickerList');
-            list.innerHTML = '';
-            allTasks.forEach(function(task) {
-                const btn = document.createElement('button');
-                btn.className = 'modal-task-btn danger';
-                btn.textContent = task.title;
-                btn.onclick = async function() {
-                    if (!confirm('Remove "' + task.title + '"? This cannot be undone.')) return;
-                    closeTaskPicker();
-                    try {
-                        const response = await fetch('/task/' + task.id + '?student_id={{ student_id }}', { method: 'DELETE' });
-                        if (response.ok) {
-                            window.location.reload();
-                        } else {
-                            const error = await response.json();
-                            alert(error.detail || 'Error removing task');
-                        }
-                    } catch (e) {
-                        alert('Error removing task: ' + e.message);
+        function renderStudentActions(studentId) {
+            const actions = document.getElementById('actions-student-' + studentId);
+            const btn = document.getElementById('toggle-mode-' + studentId);
+            if (!actions) return;
+
+            const isAdvancedScoring = studentAdvancedScoringModes[studentId] === true;
+
+            if (btn) {
+                btn.textContent = isAdvancedScoring ? "⭐️ Advanced Scoring" : "🌱 Basic Scoring";
+                btn.style.background = isAdvancedScoring ? "#e3f2fd" : "#e8f5e9";
+            }
+
+            if (studentCompletions[studentId]) return;
+
+            if (isAdvancedScoring) {
+                actions.innerHTML = `
+                    <button class="status-btn" onclick="recordStudentStatus(${studentId}, 'green')" title="Green: Done">🟢 Done</button>
+                    <button class="status-btn" onclick="recordStudentStatus(${studentId}, 'yellow')" title="Yellow: Needs Work">🟡 Work</button>
+                    <button class="status-btn status-btn-blue" onclick="recordStudentStatus(${studentId}, 'blue')" title="Blue: Great">🔵 Great</button>
+                `;
+            } else {
+                actions.innerHTML = `
+                    <button class="status-btn" onclick="recordStudentStatus(${studentId}, 'green')" title="Green: Done">🟢 Done</button>
+                    <button class="status-btn" onclick="recordStudentStatus(${studentId}, 'yellow')" title="Yellow: Needs Work">🟡 Work</button>
+                `;
+            }
+        }
+
+        function isCountUpTask(task) {
+            if (!task) return false;
+            const title = (task.title || '').toLowerCase();
+            const isCountUpFlag = task.is_countup === true || task.difficulty_weight === 0;
+            return isCountUpFlag || title.includes('plank') || title.includes('hold') || title.includes('countup') || title.includes('break') || title.includes('rest');
+        }
+
+        function startTaskTimer() {
+            clearInterval(timerInterval);
+            taskElapsedSeconds = 0;
+            isPaused = false;
+            studentCompletions = {};
+            
+            const pauseBadge = document.getElementById('pauseStatusBadge');
+            if (pauseBadge) pauseBadge.style.display = 'none';
+
+            students.forEach(s => {
+                const sid = s.id !== undefined ? s.id : s['id'];
+                const card = document.getElementById('card-student-' + sid);
+                if (card) {
+                    card.className = 'student-check-card';
+                    renderStudentActions(sid);
+                }
+            });
+
+            updateTaskUI();
+            renderUpcomingTasks();
+            updateTimerDisplay();
+
+            timerInterval = setInterval(() => {
+                if (!isPaused) {
+                    taskElapsedSeconds++;
+                    updateTimerDisplay();
+
+                    const current = tasks[currentTaskIdx];
+                    const est = current ? current.estimated_time : 0;
+                    if (autoAdvance && !isCountUpTask(current) && est > 0 && taskElapsedSeconds >= est) {
+                        nextTask();
                     }
-                };
-                list.appendChild(btn);
-            });
-            document.getElementById('taskPickerModal').classList.add('open');
+                }
+            }, 1000);
         }
 
-        function closeTaskPicker() {
-            document.getElementById('taskPickerModal').classList.remove('open');
+        function updateTimerDisplay() {
+            if (hideTimer) return;
+
+            const timerEl = document.getElementById('timerDisplay');
+            const progressEl = document.getElementById('timerProgress');
+            const current = tasks[currentTaskIdx];
+            const est = current ? current.estimated_time : 0;
+            const countUpMode = isCountUpTask(current);
+
+            if (timerEl) {
+                timerEl.classList.remove('timer-yellow', 'timer-red');
+
+                if (countUpMode) {
+                    timerEl.textContent = taskElapsedSeconds + 's';
+                } else {
+                    const remainingSeconds = est - taskElapsedSeconds;
+
+                    if (remainingSeconds <= 10) {
+                        timerEl.classList.add('timer-red');
+                    } else if (remainingSeconds <= 20) {
+                        timerEl.classList.add('timer-yellow');
+                    }
+
+                    if (remainingSeconds >= 0) {
+                        timerEl.textContent = remainingSeconds + 's';
+                    } else {
+                        timerEl.textContent = '0s (+' + Math.abs(remainingSeconds) + 's over)';
+                    }
+                }
+
+                if (isPaused) {
+                    timerEl.textContent += ' (PAUSED)';
+                    timerEl.style.opacity = '0.5';
+                } else {
+                    timerEl.style.opacity = '1';
+                }
+            }
+
+            if (progressEl) {
+                if (countUpMode) {
+                    progressEl.textContent = 'Count-up hold drill';
+                } else if (est > 0) {
+                    const remainingSeconds = est - taskElapsedSeconds;
+                    if (remainingSeconds >= 0) {
+                        const pctRemaining = Math.max(0, Math.round((remainingSeconds / est) * 100));
+                        progressEl.textContent = pctRemaining + '% remaining (~' + est + 's est)';
+                    } else {
+                        progressEl.textContent = 'Time expired (~' + est + 's est)';
+                    }
+                } else {
+                    progressEl.textContent = 'Active timer';
+                }
+            }
         }
 
-        function showFlyout() {
-            document.getElementById('soundSubmenu').style.display = 'flex';
+        function togglePause() {
+            isPaused = !isPaused;
+            const pauseBadge = document.getElementById('pauseStatusBadge');
+            if (pauseBadge) {
+                pauseBadge.style.display = isPaused ? 'inline-block' : 'none';
+            }
+            updateTimerDisplay();
         }
 
-        function hideFlyout() {
-            document.getElementById('soundSubmenu').style.display = 'none';
+        function toggleUpcomingPanel() {
+            isUpcomingVisible = !isUpcomingVisible;
+            const layout = document.getElementById('workspaceLayout');
+            const panel = document.getElementById('upcomingPanel');
+            const btn = document.getElementById('upcomingToggleBtn');
+
+            if (isUpcomingVisible) {
+                layout.classList.add('has-sidebar');
+                panel.style.display = 'block';
+                btn.textContent = '🙈 Hide Upcoming Tasks';
+            } else {
+                layout.classList.remove('has-sidebar');
+                panel.style.display = 'none';
+                btn.textContent = '📋 Show Upcoming Tasks';
+            }
         }
 
-        function toggleMenu() {
-            const drawer = document.getElementById('menuDrawer');
-            const overlay = document.getElementById('menuOverlay');
-            const btn = document.getElementById('menuBtn');
-            const isOpen = drawer.classList.contains('open');
-            drawer.classList.toggle('open', !isOpen);
-            overlay.classList.toggle('open', !isOpen);
-            btn.textContent = isOpen ? '☰' : '✕';
+        function renderUpcomingTasks() {
+            const listEl = document.getElementById('upcomingTasksList');
+            if (!listEl || !tasks) return;
+
+            listEl.innerHTML = tasks.map((t, idx) => {
+                let statusClass = '';
+                let badge = `${idx + 1}.`;
+                if (idx < currentTaskIdx) {
+                    statusClass = 'completed';
+                    badge = '✓';
+                } else if (idx === currentTaskIdx) {
+                    statusClass = 'active';
+                    badge = '▶';
+                }
+
+                const timeDisplay = isCountUpTask(t) ? 'Count Up' : `${t.estimated_time}s`;
+
+                return `
+                    <div class="upcoming-task-item ${statusClass}">
+                        <span style="font-size:1.2rem;">${t.icon || '🥋'}</span>
+                        <div style="flex:1;">
+                            <div>${badge} <strong>${t.title}</strong> (${timeDisplay})</div>
+                            ${t.description ? `<div style="font-size:0.8rem; opacity:0.75; margin-top:2px;">${t.description}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
         }
 
-        function closeMenu() {
-            document.getElementById('menuDrawer').classList.remove('open');
-            document.getElementById('menuOverlay').classList.remove('open');
-            document.getElementById('menuBtn').textContent = '☰';
+        function updateTaskUI() {
+            if (!tasks || tasks.length === 0) return;
+            const current = tasks[currentTaskIdx];
+            document.getElementById('taskIndexBadge').textContent = 'Task ' + (currentTaskIdx + 1) + ' of ' + tasks.length;
+            document.getElementById('taskIcon').textContent = current.icon || '🥋';
+            document.getElementById('taskTitle').textContent = current.title;
+            document.getElementById('taskDescription').textContent = current.description || '';
+
+            const nextBtn = document.getElementById('nextBtn');
+            if (nextBtn) {
+                if (currentTaskIdx === tasks.length - 1) {
+                    nextBtn.textContent = "🏁 Finish Session";
+                    nextBtn.className = "btn btn-success";
+                } else {
+                    nextBtn.textContent = "⏭️ Next";
+                    nextBtn.className = "btn btn-primary";
+                }
+            }
         }
-        // Keyboard shortcuts
-        // Enter / Space → Finished
-        // P             → Pause / Resume
-        // R             → Reset current task (restart from zero, no record)
-        // N             → Cancel current task → Next task (recorded as incomplete)
-        // B             → Cancel current task → Previous task (recorded as incomplete)
+
+        async function addStudentMidSession() {
+            const name = prompt("Enter the new student's name:");
+            if (!name || !name.trim()) return;
+
+            const formData = new FormData();
+            formData.append("name", name.trim());
+
+            try {
+                const res = await fetch("/session/add-student", { method: "POST", body: formData });
+                if (!res.ok) {
+                    alert("Error adding student.");
+                    return;
+                }
+                const data = await res.json();
+                const newStudent = data.student;
+
+                if (studentIdsArray.includes(String(newStudent.id))) {
+                    alert(`${newStudent.name} is already in this session!`);
+                    return;
+                }
+
+                students.push(newStudent);
+                studentIdsArray.push(String(newStudent.id));
+
+                const grid = document.getElementById("studentCheckGrid");
+                const newCard = document.createElement("div");
+                newCard.className = "student-check-card";
+                newCard.id = `card-student-${newStudent.id}`;
+                newCard.innerHTML = `
+                    <div>
+                        <span class="student-name-label">👤 ${newStudent.name}</span>
+                        <button class="mode-toggle-btn" id="toggle-mode-${newStudent.id}" onclick="toggleStudentMode(${newStudent.id})">🌱 Basic Scoring</button>
+                    </div>
+                    <div class="status-actions" id="actions-student-${newStudent.id}">
+                        <button class="status-btn" onclick="recordStudentStatus(${newStudent.id}, 'green')" title="Green: Done">🟢 Done</button>
+                        <button class="status-btn" onclick="recordStudentStatus(${newStudent.id}, 'yellow')" title="Yellow: Needs Work">🟡 Work</button>
+                    </div>
+                `;
+                grid.appendChild(newCard);
+
+                const subtitle = document.getElementById("sessionStudentsSubtitle");
+                if (subtitle) {
+                    const namesStr = students.map(s => `<strong>${s.name}</strong>`).join(", ");
+                    subtitle.innerHTML = `Students: ${namesStr}`;
+                }
+
+                confetti({ particleCount: 20, spread: 40 });
+            } catch (err) {
+                alert("Failed to add student: " + err.message);
+            }
+        }
+
+        async function recordStudentStatus(studentId, statusColor) {
+            const card = document.getElementById('card-student-' + studentId);
+            const actions = document.getElementById('actions-student-' + studentId);
+
+            if (studentCompletions[studentId]) return;
+
+            studentCompletions[studentId] = { time: taskElapsedSeconds, status: statusColor };
+            card.classList.add('status-' + statusColor);
+
+            const labels = {
+                'green': '🟢 Done',
+                'yellow': '🟡 Needs Work',
+                'blue': '🔵 Great'
+            };
+
+            actions.innerHTML = `<span class="badge-recorded badge-${statusColor}">${labels[statusColor]} (${taskElapsedSeconds}s)</span>`;
+
+            const current = tasks[currentTaskIdx];
+            const formData = new FormData();
+            formData.append('student_id', studentId);
+            formData.append('task_title', current.title);
+            formData.append('actual_time', taskElapsedSeconds);
+            formData.append('estimated_time', current.estimated_time);
+            formData.append('status_color', statusColor);
+            formData.append('session_id', sessionId);
+
+            try {
+                await fetch('/task/record-completion', { method: 'POST', body: formData });
+                confetti({ particleCount: 30, spread: 50, origin: { y: 0.8 } });
+            } catch (e) {
+                console.error("Failed to record completion", e);
+            }
+
+            const completedCount = Object.keys(studentCompletions).length;
+            if (completedCount >= students.length) {
+                setTimeout(() => {
+                    nextTask();
+                }, 400);
+            }
+        }
+
+        // Process Space / Enter key action
+        async function completeAllUnscoredAsDoneAndAdvance() {
+            for (const s of students) {
+                const sid = s.id !== undefined ? s.id : s['id'];
+                // If student has NOT received a rating yet, record them as Done (Green)
+                if (!studentCompletions[sid]) {
+                    await recordStudentStatus(sid, 'green');
+                }
+            }
+            // Proceed to the next task
+            nextTask();
+        }
+
+        async function nextTask() {
+            playChimeSound();
+            if (currentTaskIdx < tasks.length - 1) {
+                currentTaskIdx++;
+                startTaskTimer();
+            } else {
+                clearInterval(timerInterval);
+                await showSessionSummary();
+            }
+        }
+
+        function toggleStudentDetails(studentId) {
+            const list = document.getElementById('details-student-' + studentId);
+            const icon = document.getElementById('arrow-student-' + studentId);
+            if (!list) return;
+
+            if (list.style.display === 'none' || !list.style.display) {
+                list.style.display = 'block';
+                if (icon) icon.textContent = '▲';
+            } else {
+                list.style.display = 'none';
+                if (icon) icon.textContent = '▼';
+            }
+        }
+
+        async function showSessionSummary() {
+            confetti({ particleCount: 150, spread: 90, origin: { y: 0.5 } });
+
+            document.getElementById('workspaceLayout').style.display = 'none';
+
+            const now = new Date();
+            const localDate = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            const localTime = now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+
+            const activeIdsStr = studentIdsArray.join(",");
+
+            try {
+                const res = await fetch(`/session/summary?ids=${activeIdsStr}&session_id=${sessionId}&client_date=${encodeURIComponent(localDate)}&client_time=${encodeURIComponent(localTime)}`);
+                const data = await res.json();
+
+                const reportHeader = document.getElementById('sessionReportDate');
+                if (reportHeader) {
+                    reportHeader.textContent = `📅 ${data.date} at ${data.time}`;
+                }
+
+                const summaryGrid = document.getElementById('summaryGrid');
+                summaryGrid.innerHTML = '';
+
+                data.summary.forEach(s => {
+                    const card = document.createElement('div');
+                    card.className = 'student-summary-card';
+
+                    const statusPills = {
+                        'green': '<span class="pill" style="background:#e8f5e9; color:#4caf50;">🟢 Done</span>',
+                        'yellow': '<span class="pill" style="background:#fffde7; color:#fbc02d;">🟡 Work</span>',
+                        'blue': '<span class="pill" style="background:#e3f2fd; color:#1e88e5;">🔵 Great</span>'
+                    };
+
+                    let tasksHTML = '';
+                    if (s.tasks_details && s.tasks_details.length > 0) {
+                        tasksHTML = s.tasks_details.map(t => `
+                            <div class="detailed-task-item">
+                                <span><strong>${t.title}</strong> (${t.actual_time}s)</span>
+                                ${statusPills[t.status] || ''}
+                            </div>
+                        `).join('');
+                    } else {
+                        tasksHTML = '<p style="font-size:0.9rem; color:#888;">No tasks completed in this session.</p>';
+                    }
+
+                    card.innerHTML = `
+                        <h3 class="student-name-clickable" onclick="toggleStudentDetails(${s.student_id})">
+                            <span>👤 ${s.name}</span>
+                            <span id="arrow-student-${s.student_id}" style="font-size: 0.9rem; opacity:0.6;">▼</span>
+                        </h3>
+                        <div class="summary-stat-row">
+                            <span>Tasks Evaluated:</span>
+                            <strong>${s.total_tasks}</strong>
+                        </div>
+                        <div class="summary-stat-row">
+                            <span>Total Time Active:</span>
+                            <strong>${s.total_time}s</strong>
+                        </div>
+                        <div class="summary-stat-row">
+                            <span>🔵 Great:</span>
+                            <span class="pill" style="background:#e3f2fd; color:#1e88e5;">${s.blue_count}</span>
+                        </div>
+                        <div class="summary-stat-row">
+                            <span>🟢 Done:</span>
+                            <span class="pill" style="background:#e8f5e9; color:#4caf50;">${s.green_count}</span>
+                        </div>
+                        <div class="summary-stat-row">
+                            <span>🟡 Needs Work:</span>
+                            <span class="pill" style="background:#fffde7; color:#fbc02d;">${s.yellow_count}</span>
+                        </div>
+
+                        <div class="detailed-task-list" id="details-student-${s.student_id}">
+                            <h4 style="margin: 0 0 10px 0; font-size: 1rem; color:#555;">Current Session Breakdown:</h4>
+                            ${tasksHTML}
+                        </div>
+                    `;
+                    summaryGrid.appendChild(card);
+                });
+
+                document.getElementById('sessionReportCard').style.display = 'block';
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } catch (e) {
+                alert("Error generating summary: " + e.message);
+                window.location.href = "/";
+            }
+        }
+
+        function prevTask() {
+            if (currentTaskIdx > 0) {
+                currentTaskIdx--;
+                startTaskTimer();
+            } else {
+                alert("You are at the first task.");
+            }
+        }
+
+        function restartTask() {
+            startTaskTimer();
+        }
+
+        // Updated Keyboard Shortcuts Listener
         document.addEventListener('keydown', function(e) {
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
-            if (e.repeat) return;
-            switch (e.key) {
-                case 'Enter':
-                case ' ':
-                    e.preventDefault();
-                    const btn = document.getElementById('finishBtn');
-                    if (btn && !btn.disabled) btn.click();
-                    break;
-                case 'p': case 'P':
-                    pauseTask();
-                    break;
-                case 'r': case 'R':
-                    if (currentTaskId) resetCurrentTask();
-                    break;
-                case 'n': case 'N':
-                    if (currentTaskId) cancelTask();
-                    break;
-                case 'b': case 'B':
-                    if (currentTaskId) goToPrevTask();
-                    break;
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+                return;
+            }
+
+            const key = e.key.toLowerCase();
+
+            // Spacebar or Enter Key: Marks all unscored students as Done (Green) & advances to next task
+            if (e.key === ' ' || e.key === 'Enter') {
+                e.preventDefault();
+                completeAllUnscoredAsDoneAndAdvance();
+            } 
+            // N Key: Simply advances to next task
+            else if (key === 'n') {
+                e.preventDefault();
+                nextTask();
+            }
+            // B Key: Back / Previous Task
+            else if (key === 'b') {
+                e.preventDefault();
+                prevTask();
+            } 
+            // P Key: Pause / Unpause toggle
+            else if (key === 'p') {
+                e.preventDefault();
+                togglePause();
+            } 
+            // R Key: Restart Task
+            else if (key === 'r') {
+                e.preventDefault();
+                restartTask();
             }
         });
 
+        if (tasks && tasks.length > 0) {
+            startTaskTimer();
+        }
     </script>
 </body>
 </html>

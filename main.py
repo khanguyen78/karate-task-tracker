@@ -10,6 +10,7 @@ import os
 import json
 import logging
 import logging.handlers
+import uuid
 from pathlib import Path
 
 app = FastAPI()
@@ -22,11 +23,6 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 DB_PATH = os.getenv('DATABASE_PATH', 'data/karate_tracker.db')
-
-# --- Logging configuration ---
-# LOG_ENABLED: set to "true" to enable file logging (default: false)
-# LOG_LEVEL:   DEBUG, INFO, WARNING, ERROR, CRITICAL (default: INFO)
-# LOG_PATH:    directory to write karate_tracker.log (default: /var/log)
 
 LOG_ENABLED = os.getenv('LOG_ENABLED', 'false').lower() == 'true'
 LOG_LEVEL_STR = os.getenv('LOG_LEVEL', 'INFO').upper()
@@ -59,14 +55,11 @@ if LOG_ENABLED:
         )
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
-        logger.info(f"Logging initialized — level={LOG_LEVEL_STR}, file={log_file}")
     except PermissionError:
         logging.basicConfig(level=LOG_LEVEL)
-        logger.warning(
-            f"Cannot write to {log_file} (permission denied). Falling back to stderr."
-        )
 else:
     logger.addHandler(logging.NullHandler())
+
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -86,65 +79,39 @@ def init_db():
                   difficulty_weight REAL DEFAULT 1.0,
                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                   archived INTEGER DEFAULT 0,
-                  task_order INTEGER DEFAULT 0,
-                  csv_task_id TEXT,
-                  count INTEGER DEFAULT 10,
                   FOREIGN KEY (student_id) REFERENCES students(id))''')
-    # Migrations
-    for col, definition in [
-        ("archived", "INTEGER DEFAULT 0"),
-        ("task_order", "INTEGER DEFAULT 0"),
-        ("csv_task_id", "TEXT"),
-        ("count", "INTEGER DEFAULT 10"),
-    ]:
-        try:
-            c.execute(f"ALTER TABLE tasks ADD COLUMN {col} {definition}")
-        except Exception:
-            pass
     
     c.execute('''CREATE TABLE IF NOT EXISTS task_completions
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   student_id INTEGER,
                   task_id INTEGER,
+                  session_id TEXT,
                   start_time TIMESTAMP,
                   end_time TIMESTAMP,
                   actual_time INTEGER,
                   focus_score REAL,
                   impact_score REAL,
+                  status_color TEXT DEFAULT 'green',
                   completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                   completed INTEGER DEFAULT 1,
                   FOREIGN KEY (student_id) REFERENCES students(id),
                   FOREIGN KEY (task_id) REFERENCES tasks(id))''')
-    # Migrate: add completed column if missing
+
     try:
-        c.execute("ALTER TABLE task_completions ADD COLUMN completed INTEGER DEFAULT 1")
+        c.execute("ALTER TABLE task_completions ADD COLUMN status_color TEXT DEFAULT 'green'")
     except Exception:
         pass
-    
-    c.execute('''CREATE TABLE IF NOT EXISTS active_sessions
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  student_id INTEGER,
-                  task_id INTEGER,
-                  start_time TIMESTAMP,
-                  FOREIGN KEY (student_id) REFERENCES students(id),
-                  FOREIGN KEY (task_id) REFERENCES tasks(id))''')
+
+    try:
+        c.execute("ALTER TABLE task_completions ADD COLUMN session_id TEXT")
+    except Exception:
+        pass
     
     conn.commit()
     conn.close()
 
-# Migrate existing tasks table if it lacks student_id column
-def migrate_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("PRAGMA table_info(tasks)")
-    columns = [row[1] for row in c.fetchall()]
-    if 'student_id' not in columns:
-        c.execute("ALTER TABLE tasks ADD COLUMN student_id INTEGER REFERENCES students(id)")
-        conn.commit()
-    conn.close()
-
 init_db()
-migrate_db()
+
 
 def clean_csv_value(value: str) -> str:
     if not value:
@@ -152,8 +119,21 @@ def clean_csv_value(value: str) -> str:
     cleaned = value.strip().replace('\n', ' ').replace('\r', '')
     return cleaned[:500]
 
+
+def auto_detect_icon(title: str, custom_icon: str = "") -> str:
+    if custom_icon:
+        return custom_icon
+    t = title.lower()
+    if 'kick' in t or 'geri' in t: return '🦵'
+    if 'punch' in t or 'zuki' in t or 'strike' in t or 'bag' in t: return '🥊'
+    if 'plank' in t or 'hold' in t or 'stretch' in t: return '🧘'
+    if 'break' in t or 'water' in t or 'rest' in t: return '💧'
+    if 'kata' in t or 'form' in t or 'karate' in t: return '🥋'
+    if 'warm' in t or 'jump' in t or 'run' in t: return '⏱️'
+    return '🥋'
+
+
 def calculate_difficulty_weight(estimated_time: int) -> float:
-    """estimated_time is in seconds"""
     if estimated_time <= 300:
         return 0.5
     elif estimated_time <= 900:
@@ -163,19 +143,19 @@ def calculate_difficulty_weight(estimated_time: int) -> float:
     else:
         return 2.0
 
+
 DIFFICULTY_MAP = {
     'easy': 0.5, 'medium': 1.0, 'hard': 1.5, 'expert': 2.0,
     '0.5': 0.5, '1.0': 1.0, '1.5': 1.5, '2.0': 2.0,
 }
 
+
 def parse_difficulty(value: str, estimated_time: int) -> float:
-    """Parse difficulty from CSV field, fall back to time-based if blank/invalid."""
     if not value:
         return calculate_difficulty_weight(estimated_time)
     normalized = value.strip().lower()
-    if normalized in DIFFICULTY_MAP:
-        return DIFFICULTY_MAP[normalized]
-    return calculate_difficulty_weight(estimated_time)
+    return DIFFICULTY_MAP.get(normalized, calculate_difficulty_weight(estimated_time))
+
 
 def calculate_focus_score(estimated: int, actual: int) -> float:
     if estimated == 0:
@@ -186,38 +166,10 @@ def calculate_focus_score(estimated: int, actual: int) -> float:
     else:
         return max(0.1, 1.0 / ratio)
 
+
 def calculate_impact_score(difficulty: float, focus: float) -> float:
     return (difficulty * 0.4 + focus * 0.6) * 10
 
-def get_student_streak(student_id: int) -> int:
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    
-    c.execute('''SELECT DATE(completed_at) as date, COUNT(*) as count
-                 FROM task_completions
-                 WHERE student_id = ?
-                 GROUP BY DATE(completed_at)
-                 ORDER BY date DESC
-                 LIMIT 30''', (student_id,))
-    
-    dates = c.fetchall()
-    conn.close()
-    
-    if not dates:
-        return 0
-    
-    streak = 0
-    current_date = datetime.now().date()
-    
-    for date_str, count in dates:
-        date = datetime.strptime(date_str, '%Y-%m-%d').date()
-        if date == current_date or date == current_date - timedelta(days=streak):
-            streak += 1
-            current_date = date
-        else:
-            break
-    
-    return streak
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
@@ -226,829 +178,342 @@ async def home(request: Request):
     c.execute("SELECT id, name FROM students ORDER BY created_at DESC")
     students = [{"id": row[0], "name": row[1]} for row in c.fetchall()]
     conn.close()
-    
-    return templates.TemplateResponse("index.html", {
-        "request": request,
-        "students": students
-    })
+    return templates.TemplateResponse("index.html", {"request": request, "students": students})
 
-@app.get("/users", response_class=HTMLResponse)
-async def all_users(request: Request):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''SELECT s.id, s.name,
-                        COUNT(DISTINCT t.id) as task_count,
-                        COUNT(DISTINCT tc.id) as completion_count
-                 FROM students s
-                 LEFT JOIN tasks t ON t.student_id = s.id
-                 LEFT JOIN task_completions tc ON tc.student_id = s.id
-                 GROUP BY s.id
-                 ORDER BY s.name''')
-    users = [{"id": row[0], "name": row[1], "tasks": row[2], "completions": row[3]}
-             for row in c.fetchall()]
-    conn.close()
-    return templates.TemplateResponse("users.html", {"request": request, "users": users})
 
-@app.get("/export/user/{student_id}")
-async def export_user_data(student_id: int):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-
-    c.execute("SELECT id, name, created_at FROM students WHERE id = ?", (student_id,))
-    student = c.fetchone()
-    if not student:
-        conn.close()
-        raise HTTPException(404, "Student not found")
-
-    c.execute("SELECT id, title, description, estimated_time, difficulty_weight, created_at, count, csv_task_id, task_order FROM tasks WHERE student_id = ? AND archived = 0", (student_id,))
-    tasks = [{"id": r[0], "title": r[1], "description": r[2], "estimated_time": r[3], "difficulty_weight": r[4], "created_at": r[5],
-              "count": r[6], "csv_task_id": r[7], "task_order": r[8]} for r in c.fetchall()]
-
-    c.execute('''SELECT tc.id, tc.task_id, tc.start_time, tc.end_time, tc.actual_time,
-                        tc.focus_score, tc.impact_score, tc.completed_at, COALESCE(tc.completed, 1)
-                 FROM task_completions tc WHERE tc.student_id = ?''', (student_id,))
-    completions = [{"id": r[0], "task_id": r[1], "start_time": r[2], "end_time": r[3],
-                    "actual_time": r[4], "focus_score": r[5], "impact_score": r[6],
-                    "completed_at": r[7], "completed": r[8]} for r in c.fetchall()]
-    conn.close()
-
-    data = {
-        "export_version": 1,
-        "exported_at": datetime.now().isoformat(),
-        "student": {"name": student[1], "created_at": student[2]},
-        "tasks": tasks,
-        "completions": completions
-    }
-
-    filename = f"{student[1].replace(' ', '_')}_session_data.json"
-    return Response(
-        content=json.dumps(data, indent=2),
-        media_type="application/json",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
-    )
-
-@app.get("/export/all")
-async def export_all_data():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-
-    c.execute("SELECT id, name, created_at FROM students ORDER BY id")
-    students_raw = c.fetchall()
-
-    all_data = []
-    for student in students_raw:
-        sid = student[0]
-        c.execute("SELECT id, title, description, estimated_time, difficulty_weight, created_at, count, csv_task_id, task_order FROM tasks WHERE student_id = ? AND archived = 0", (sid,))
-        tasks = [{"id": r[0], "title": r[1], "description": r[2], "estimated_time": r[3], "difficulty_weight": r[4], "created_at": r[5],
-                  "count": r[6], "csv_task_id": r[7], "task_order": r[8]} for r in c.fetchall()]
-
-        c.execute('''SELECT id, task_id, start_time, end_time, actual_time, focus_score, impact_score, completed_at, COALESCE(completed, 1)
-                     FROM task_completions WHERE student_id = ?''', (sid,))
-        completions = [{"id": r[0], "task_id": r[1], "start_time": r[2], "end_time": r[3],
-                        "actual_time": r[4], "focus_score": r[5], "impact_score": r[6],
-                        "completed_at": r[7], "completed": r[8]} for r in c.fetchall()]
-
-        all_data.append({"student": {"name": student[1], "created_at": student[2]}, "tasks": tasks, "completions": completions})
-
-    conn.close()
-    data = {"export_version": 1, "exported_at": datetime.now().isoformat(), "users": all_data}
-    return Response(
-        content=json.dumps(data, indent=2),
-        media_type="application/json",
-        headers={"Content-Disposition": "attachment; filename=all_users_session_data.json"}
-    )
-
-@app.post("/import/data")
-async def import_user_data(file: UploadFile = File(...)):
-    contents = await file.read()
-    try:
-        data = json.loads(contents.decode("utf-8"))
-    except Exception:
-        raise HTTPException(400, "Invalid JSON file")
-
-    # Support both single-user and all-users export formats
-    if "users" in data:
-        user_list = data["users"]
-    elif "student" in data:
-        user_list = [{"student": data["student"], "tasks": data.get("tasks", []), "completions": data.get("completions", [])}]
-    else:
-        raise HTTPException(400, "Unrecognised export format")
+@app.post("/session/create")
+async def create_session(
+    names: str = Form(...), 
+    show_timer: bool = Form(False),
+    auto_advance: bool = Form(False),
+    enable_chime: bool = Form(False),
+    file: UploadFile = File(None)
+):
+    raw_names = [clean_csv_value(n).title() for n in names.split(",") if clean_csv_value(n)]
+    if not raw_names:
+        raise HTTPException(400, "Please enter at least one valid student name.")
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    imported = []
+    student_ids = []
 
-    for entry in user_list:
-        student_info = entry["student"]
-        name = student_info["name"].strip().title()
-
-        # Find or create student
+    for name in raw_names:
         c.execute("SELECT id FROM students WHERE name = ? COLLATE NOCASE", (name,))
         row = c.fetchone()
         if row:
-            student_id = row[0]
+            student_ids.append(row[0])
         else:
-            c.execute("INSERT INTO students (name, created_at) VALUES (?, ?)", (name, student_info.get("created_at")))
-            student_id = c.lastrowid
+            c.execute("INSERT INTO students (name) VALUES (?)", (name,))
+            student_ids.append(c.lastrowid)
 
-        # Load existing tasks for merge matching (by csv_task_id then title)
-        c.execute("SELECT id, title, csv_task_id FROM tasks WHERE student_id = ?", (student_id,))
-        by_csvid = {}
-        by_title = {}
-        for r in c.fetchall():
-            if r[2]:
-                by_csvid[str(r[2])] = r[0]
-            by_title[r[1].lower()] = r[0]
+    if file and file.filename:
+        contents = await file.read()
+        if contents:
+            csv_file = io.StringIO(contents.decode('utf-8'))
+            reader = csv.DictReader(csv_file)
 
-        # Build old_task_id (from export) → new_task_id map
-        task_id_map = {}
-        for task in entry.get("tasks", []):
-            csv_task_id = task.get("csv_task_id")
-            existing_id = (by_csvid.get(str(csv_task_id)) if csv_task_id else None) or by_title.get(task["title"].lower())
-            if existing_id:
-                c.execute('''UPDATE tasks SET title=?, description=?, estimated_time=?,
-                             difficulty_weight=?, count=?, task_order=?, csv_task_id=?, archived=0
-                             WHERE id=?''',
-                          (task["title"], task.get("description", ""), task.get("estimated_time", 900),
-                           task.get("difficulty_weight", 1.0), task.get("count", 10),
-                           task.get("task_order", 0), csv_task_id, existing_id))
-                task_id_map[task["id"]] = existing_id
-            else:
-                c.execute('''INSERT INTO tasks (student_id, title, description, estimated_time,
-                             difficulty_weight, created_at, count, task_order, csv_task_id)
-                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                          (student_id, task["title"], task.get("description", ""),
-                           task.get("estimated_time", 900), task.get("difficulty_weight", 1.0),
-                           task.get("created_at"), task.get("count", 10),
-                           task.get("task_order", 0), csv_task_id))
-                task_id_map[task["id"]] = c.lastrowid
-
-        for comp in entry.get("completions", []):
-            new_task_id = task_id_map.get(comp["task_id"])
-            if new_task_id:
-                # Skip if an identical completion already exists (avoid duplicate re-import)
-                c.execute('''SELECT id FROM task_completions
-                             WHERE student_id=? AND task_id=? AND start_time=? AND completed_at=?''',
-                          (student_id, new_task_id, comp.get("start_time"), comp.get("completed_at")))
-                if c.fetchone():
+            incoming = []
+            for row in reader:
+                title = clean_csv_value(row.get('task', ''))
+                if not title:
                     continue
-                c.execute('''INSERT INTO task_completions
-                             (student_id, task_id, start_time, end_time, actual_time, focus_score, impact_score, completed_at, completed)
-                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                          (student_id, new_task_id, comp.get("start_time"), comp.get("end_time"),
-                           comp.get("actual_time", 0), comp.get("focus_score", 1.0),
-                           comp.get("impact_score", 5.0), comp.get("completed_at"), comp.get("completed", 1)))
+                description = clean_csv_value(row.get('description', ''))
+                time_str = clean_csv_value(row.get('estimated_time', ''))
+                diff_str = clean_csv_value(row.get('difficulty', '')).lower()
+                icon_str = clean_csv_value(row.get('icon', ''))
+                
+                try:
+                    estimated_time = int(''.join(filter(str.isdigit, time_str))) if time_str else 900
+                except Exception:
+                    estimated_time = 900
 
-        imported.append(name)
+                is_countup = 'countup' in diff_str or 'up' in diff_str or 'plank' in title.lower() or 'hold' in title.lower() or 'break' in title.lower() or 'rest' in title.lower()
+                difficulty = 0.0 if is_countup else parse_difficulty(diff_str, estimated_time)
+                
+                incoming.append((title, description, estimated_time, difficulty, icon_str))
+
+            for sid in student_ids:
+                c.execute("UPDATE tasks SET archived = 1 WHERE student_id = ?", (sid,))
+                for title, description, estimated_time, difficulty, icon_str in incoming:
+                    c.execute('''INSERT INTO tasks (student_id, title, description, estimated_time, difficulty_weight, archived)
+                                 VALUES (?, ?, ?, ?, ?, 0)''',
+                              (sid, title, description, estimated_time, difficulty))
 
     conn.commit()
     conn.close()
-    logger.info(f"Imported data for: {', '.join(imported)}")
-    return {"success": True, "imported": imported}
 
-@app.post("/student/create")
-async def create_student(name: str = Form(...)):
-    name = clean_csv_value(name).title()
-    if not name or len(name) < 2:
-        raise HTTPException(400, "Please enter a valid name (at least 2 characters)")
+    session_id = str(uuid.uuid4())[:8]
+    ids_param = ",".join(str(i) for i in student_ids)
+    hide_timer = not show_timer
+    timer_flag = "1" if hide_timer else "0"
+    advance_flag = "1" if auto_advance else "0"
+    chime_flag = "1" if enable_chime else "0"
+    
+    return RedirectResponse(f"/session/dashboard?ids={ids_param}&hide_timer={timer_flag}&auto_advance={advance_flag}&enable_chime={chime_flag}&session_id={session_id}", status_code=303)
+
+
+@app.post("/session/add-student")
+async def add_student_mid_session(name: str = Form(...)):
+    clean_name = clean_csv_value(name).title()
+    if not clean_name:
+        raise HTTPException(400, "Name cannot be empty.")
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
-    # Check for existing student case-insensitively
-    c.execute("SELECT id, name FROM students WHERE name = ? COLLATE NOCASE", (name,))
-    existing = c.fetchone()
-
-    if existing:
-        student_id = existing[0]
-        logger.debug(f"Student '{name}' matched existing '{existing[1]}' (id={student_id}), redirecting")
+    c.execute("SELECT id, name FROM students WHERE name = ? COLLATE NOCASE", (clean_name,))
+    row = c.fetchone()
+    if row:
+        student_id, student_name = row[0], row[1]
     else:
-        try:
-            c.execute("INSERT INTO students (name) VALUES (?)", (name,))
-            conn.commit()
-            student_id = c.lastrowid
-            logger.info(f"New student created: '{name}' (id={student_id})")
-        except sqlite3.IntegrityError:
-            c.execute("SELECT id FROM students WHERE name = ? COLLATE NOCASE", (name,))
-            student_id = c.fetchone()[0]
+        c.execute("INSERT INTO students (name) VALUES (?)", (clean_name,))
+        student_id, student_name = c.lastrowid, clean_name
 
+    conn.commit()
     conn.close()
-    return RedirectResponse(f"/student/{student_id}", status_code=303)
 
-@app.get("/student/{student_id}", response_class=HTMLResponse)
-async def student_dashboard(request: Request, student_id: int):
+    return {"success": True, "student": {"id": student_id, "name": student_name}}
+
+
+@app.get("/session/dashboard", response_class=HTMLResponse)
+async def session_dashboard(request: Request, ids: str, hide_timer: str = "1", auto_advance: str = "0", enable_chime: str = "0", session_id: str = "default"):
+    student_ids = [int(i) for i in ids.split(",") if i.isdigit()]
+    if not student_ids:
+        raise HTTPException(400, "No valid students specified.")
+
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    
-    c.execute("SELECT name FROM students WHERE id = ?", (student_id,))
-    student = c.fetchone()
-    if not student:
-        conn.close()
-        logger.warning(f"Dashboard requested for unknown student_id={student_id}")
-        raise HTTPException(404, "Student not found")
-    
-    logger.debug(f"Dashboard loaded for student '{student[0]}' (id={student_id})")
-    
-    c.execute("SELECT id, title, description, estimated_time, difficulty_weight, count FROM tasks WHERE student_id = ? AND archived = 0 ORDER BY task_order ASC, id ASC", (student_id,))
-    tasks = [{"id": row[0], "title": row[1], "description": row[2], 
-              "estimated_time": row[3],
-              "difficulty_weight": row[4],
-              "count": row[5]} for row in c.fetchall()]
-    
-    c.execute('''SELECT a.id, a.task_id, t.title, t.description, t.estimated_time, a.start_time, t.count
-                 FROM active_sessions a
-                 JOIN tasks t ON a.task_id = t.id
-                 WHERE a.student_id = ?''', (student_id,))
-    active = c.fetchone()
-    active_session = None
-    if active:
-        start_time = datetime.fromisoformat(active[5])
-        elapsed = int((datetime.now() - start_time).total_seconds())
-        active_session = {
-            "id": active[0],
-            "task_id": active[1],
-            "task_title": active[2],
-            "task_description": active[3],
-            "estimated_time": active[4],
-            "start_time": active[5],
-            "elapsed": elapsed,
-            "count": active[6]
-        }
-    
-    streak = get_student_streak(student_id)
+
+    placeholders = ",".join("?" for _ in student_ids)
+    c.execute(f"SELECT id, name FROM students WHERE id IN ({placeholders})", student_ids)
+    students = [{"id": row[0], "name": row[1]} for row in c.fetchall()]
+
+    c.execute(f"""SELECT DISTINCT title, description, estimated_time, difficulty_weight 
+                 FROM tasks 
+                 WHERE student_id IN ({placeholders}) AND archived = 0 
+                 ORDER BY id""", student_ids)
+    raw_tasks = c.fetchall()
+
+    tasks = []
+    for idx, row in enumerate(raw_tasks):
+        title = row[0]
+        diff_weight = row[3]
+        is_countup = diff_weight == 0.0 or 'plank' in title.lower() or 'hold' in title.lower() or 'countup' in title.lower() or 'break' in title.lower() or 'rest' in title.lower()
+        
+        tasks.append({
+            "id": idx + 1,
+            "title": title,
+            "description": row[1] or "",
+            "estimated_time": row[2],
+            "difficulty_weight": diff_weight,
+            "is_countup": is_countup,
+            "icon": auto_detect_icon(title)
+        })
+
     conn.close()
-    
+
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
-        "student_id": student_id,
-        "student_name": student[0],
+        "students": students,
+        "student_ids_str": ids,
+        "session_id": session_id,
         "tasks": tasks,
-        "active_session": active_session,
-        "streak": streak
+        "hide_timer": hide_timer == "1",
+        "auto_advance": auto_advance == "1",
+        "enable_chime": enable_chime == "1"
     })
 
-def _parse_csv(contents: bytes) -> list:
-    """Parse CSV bytes into a list of task dicts with taskid, order, title, etc."""
-    csv_file = io.StringIO(contents.decode('utf-8'))
-    reader = csv.DictReader(csv_file)
-    tasks = []
-    for order, row in enumerate(reader):
-        title = clean_csv_value(row.get('task', ''))
-        if not title:
-            continue
-        csv_task_id = clean_csv_value(row.get('taskid', '')) or None
-        description = clean_csv_value(row.get('description', ''))
-        time_str = clean_csv_value(row.get('estimated_time', ''))
-        try:
-            estimated_time = int(''.join(filter(str.isdigit, time_str))) if time_str else 900
-        except:
-            estimated_time = 900
-        diff_str = clean_csv_value(row.get('difficulty', ''))
-        difficulty = parse_difficulty(diff_str, estimated_time)
-        count_str = clean_csv_value(row.get('count', ''))
-        try:
-            count = int(''.join(filter(str.isdigit, count_str))) if count_str else 10
-        except:
-            count = 10
-        # Use taskid as order if numeric, otherwise use CSV row position
-        try:
-            task_order = int(csv_task_id) if csv_task_id and csv_task_id.isdigit() else order
-        except:
-            task_order = order
-        tasks.append({
-            "csv_task_id": csv_task_id,
-            "title": title,
-            "description": description,
-            "estimated_time": estimated_time,
-            "difficulty": difficulty,
-            "count": count,
-            "order": task_order,
+
+@app.post("/task/record-completion")
+async def record_completion(
+    student_id: int = Form(...),
+    task_title: str = Form(...),
+    actual_time: int = Form(...),
+    estimated_time: int = Form(...),
+    status_color: str = Form("green"),
+    session_id: str = Form("default")
+):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    c.execute("SELECT id, difficulty_weight FROM tasks WHERE student_id = ? AND title = ? AND archived = 0", (student_id, task_title))
+    task_row = c.fetchone()
+    
+    difficulty = task_row[1] if task_row else calculate_difficulty_weight(estimated_time)
+    task_id = task_row[0] if task_row else None
+
+    focus_score = calculate_focus_score(estimated_time, actual_time)
+    impact_score = calculate_impact_score(difficulty, focus_score)
+
+    now_iso = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    c.execute('''INSERT INTO task_completions 
+                 (student_id, task_id, session_id, start_time, end_time, actual_time, focus_score, impact_score, status_color, completed_at, completed)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)''',
+              (student_id, task_id, session_id, now_iso, now_iso, actual_time, focus_score, impact_score, status_color, now_iso))
+
+    conn.commit()
+    conn.close()
+    return {"success": True, "student_id": student_id, "actual_time": actual_time, "status_color": status_color}
+
+
+@app.get("/session/summary")
+async def session_summary(
+    ids: str,
+    client_date: str = None,
+    client_time: str = None,
+    session_id: str = None
+):
+    student_ids = [int(i) for i in ids.split(",") if i.isdigit()]
+    if not student_ids:
+        raise HTTPException(400, "No valid students provided")
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    summary_data = []
+
+    if client_date and client_time:
+        formatted_date = client_date
+        formatted_time = client_time
+    else:
+        now = datetime.now()
+        formatted_date = now.strftime("%A, %B %d, %Y")
+        formatted_time = now.strftime("%I:%M %p")
+
+    for sid in student_ids:
+        c.execute("SELECT name FROM students WHERE id = ?", (sid,))
+        s_row = c.fetchone()
+        name = s_row[0] if s_row else f"Student #{sid}"
+
+        if session_id:
+            c.execute("""SELECT tc.actual_time, COALESCE(tc.status_color, 'green'), COALESCE(t.title, 'Group Task')
+                         FROM task_completions tc
+                         LEFT JOIN tasks t ON tc.task_id = t.id
+                         WHERE tc.student_id = ? AND tc.session_id = ?
+                         ORDER BY tc.id ASC""", (sid, session_id))
+            rows = c.fetchall()
+        else:
+            c.execute("""SELECT tc.actual_time, COALESCE(tc.status_color, 'green'), COALESCE(t.title, 'Group Task')
+                         FROM task_completions tc
+                         LEFT JOIN tasks t ON tc.task_id = t.id
+                         WHERE tc.student_id = ?
+                         ORDER BY tc.id DESC LIMIT 15""", (sid,))
+            rows = c.fetchall()
+            rows.reverse()
+
+        total_time = sum(r[0] for r in rows)
+        total_tasks = len(rows)
+        green_count = sum(1 for r in rows if r[1] == 'green')
+        yellow_count = sum(1 for r in rows if r[1] == 'yellow')
+        blue_count = sum(1 for r in rows if r[1] == 'blue')
+
+        tasks_details = [
+            {"title": r[2], "actual_time": r[0], "status": r[1]}
+            for r in rows
+        ]
+
+        summary_data.append({
+            "student_id": sid,
+            "name": name,
+            "total_tasks": total_tasks,
+            "total_time": total_time,
+            "green_count": green_count,
+            "yellow_count": yellow_count,
+            "blue_count": blue_count,
+            "tasks_details": tasks_details
         })
-    return tasks
 
-@app.post("/upload-tasks/{student_id}")
-async def upload_tasks(student_id: int, file: UploadFile = File(...)):
-    if not file.filename.endswith('.csv'):
-        logger.warning(f"Student {student_id} attempted to upload non-CSV file: {file.filename}")
-        raise HTTPException(400, "Please upload a CSV file")
+    conn.close()
+    return {
+        "date": formatted_date,
+        "time": formatted_time,
+        "summary": summary_data
+    }
 
-    logger.info(f"Student {student_id} uploading task CSV: {file.filename}")
-    incoming = _parse_csv(await file.read())
 
+# --- ADMIN CONTROL PANEL ROUTES ---
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_dashboard(request: Request):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-
-    # Load existing tasks keyed by csv_task_id (preferred) then lower title
-    c.execute("SELECT id, title, csv_task_id, archived FROM tasks WHERE student_id = ?", (student_id,))
-    by_csvid = {}
-    by_title = {}
-    for row in c.fetchall():
-        if row[2]:
-            by_csvid[str(row[2])] = {"id": row[0], "archived": row[3]}
-        by_title[row[1].lower()] = {"id": row[0], "archived": row[3]}
-
-    incoming_keys = set()
-    for t in incoming:
-        incoming_keys.add(str(t["csv_task_id"]) if t["csv_task_id"] else t["title"].lower())
-
-    # Archive active tasks no longer in the new CSV
-    archived_count = 0
-    for row_csvid, task in by_csvid.items():
-        if row_csvid not in incoming_keys and task["archived"] == 0:
-            c.execute("UPDATE tasks SET archived = 1 WHERE id = ?", (task["id"],))
-            archived_count += 1
-    if not by_csvid:  # fallback to title matching if no csv_task_ids exist
-        for lower_title, task in by_title.items():
-            if lower_title not in incoming_keys and task["archived"] == 0:
-                c.execute("UPDATE tasks SET archived = 1 WHERE id = ?", (task["id"],))
-                archived_count += 1
-
-    added = updated = 0
-    for t in incoming:
-        existing = (by_csvid.get(str(t["csv_task_id"])) if t["csv_task_id"] else None) or by_title.get(t["title"].lower())
-        if existing:
-            c.execute('''UPDATE tasks SET title=?, description=?, estimated_time=?,
-                         difficulty_weight=?, archived=0, task_order=?, csv_task_id=?, count=?
-                         WHERE id=?''',
-                      (t["title"], t["description"], t["estimated_time"],
-                       t["difficulty"], t["order"], t["csv_task_id"], t["count"], existing["id"]))
-            updated += 1
-        else:
-            c.execute('''INSERT INTO tasks (student_id, title, description, estimated_time,
-                         difficulty_weight, archived, task_order, csv_task_id, count)
-                         VALUES (?,?,?,?,?,0,?,?,?)''',
-                      (student_id, t["title"], t["description"], t["estimated_time"],
-                       t["difficulty"], t["order"], t["csv_task_id"], t["count"]))
-            added += 1
-
-    conn.commit()
+    c.execute('''SELECT s.id, s.name,
+                        COUNT(tc.id) as total_completions,
+                        MAX(tc.completed_at) as last_active
+                 FROM students s
+                 LEFT JOIN task_completions tc ON tc.student_id = s.id
+                 GROUP BY s.id
+                 ORDER BY last_active DESC, s.name ASC''')
+    students_raw = c.fetchall()
+    
+    students = []
+    for row in students_raw:
+        students.append({
+            "id": row[0],
+            "name": row[1],
+            "total_completions": row[2],
+            "last_active": row[3] if row[3] else "Never"
+        })
+        
     conn.close()
-    logger.info(f"Student {student_id} CSV upload: {added} added, {updated} updated, {archived_count} archived")
-    return {"success": True, "tasks_added": added, "tasks_updated": updated, "tasks_archived": archived_count}
+    return templates.TemplateResponse("admin.html", {"request": request, "students": students})
 
-    logger.info(f"Student {student_id} CSV upload: {added} added, {updated} updated, {archived_count} archived from '{file.filename}'")
-    return {"success": True, "tasks_added": added, "tasks_updated": updated, "tasks_archived": archived_count}
 
-@app.post("/tasks/archive-all/{student_id}")
-async def archive_all_tasks(student_id: int):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("UPDATE tasks SET archived = 1 WHERE student_id = ? AND archived = 0", (student_id,))
-    conn.commit()
-    conn.close()
-    return {"success": True}
-
-@app.post("/upload-tasks/overwrite/{student_id}")
-async def overwrite_tasks(student_id: int, file: UploadFile = File(...)):
-    """Replace the task list atomically using taskid as the stable key."""
-    if not file.filename.endswith('.csv'):
-        raise HTTPException(400, "Please upload a CSV file")
-
-    incoming = _parse_csv(await file.read())
-
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-
-    # Archive all active tasks and clear session
-    c.execute("UPDATE tasks SET archived = 1 WHERE student_id = ? AND archived = 0", (student_id,))
-    c.execute("DELETE FROM active_sessions WHERE student_id = ?", (student_id,))
-
-    # Load all tasks (now archived) keyed by csv_task_id then lower title
-    c.execute("SELECT id, title, csv_task_id FROM tasks WHERE student_id = ?", (student_id,))
-    by_csvid = {}
-    by_title = {}
-    for row in c.fetchall():
-        if row[2]:
-            by_csvid[str(row[2])] = row[0]
-        by_title[row[1].lower()] = row[0]
-
-    added = updated = 0
-    for t in incoming:
-        existing_id = (by_csvid.get(str(t["csv_task_id"])) if t["csv_task_id"] else None) or by_title.get(t["title"].lower())
-        if existing_id:
-            c.execute('''UPDATE tasks SET title=?, description=?, estimated_time=?,
-                         difficulty_weight=?, archived=0, task_order=?, csv_task_id=?, count=?
-                         WHERE id=?''',
-                      (t["title"], t["description"], t["estimated_time"],
-                       t["difficulty"], t["order"], t["csv_task_id"], t["count"], existing_id))
-            updated += 1
-        else:
-            c.execute('''INSERT INTO tasks (student_id, title, description, estimated_time,
-                         difficulty_weight, archived, task_order, csv_task_id, count)
-                         VALUES (?,?,?,?,?,0,?,?,?)''',
-                      (student_id, t["title"], t["description"], t["estimated_time"],
-                       t["difficulty"], t["order"], t["csv_task_id"], t["count"]))
-            added += 1
-
-    conn.commit()
-    conn.close()
-    logger.info(f"Student {student_id} overwrite upload: {added} added, {updated} updated")
-    return {"success": True, "tasks_added": added, "tasks_updated": updated}
-
-@app.get("/tasks/view/{student_id}", response_class=HTMLResponse)
-async def view_tasks(request: Request, student_id: int):
+@app.get("/admin/student/{student_id}/history")
+async def admin_student_history(student_id: int, date: str = None):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
     c.execute("SELECT name FROM students WHERE id = ?", (student_id,))
-    student = c.fetchone()
-    if not student:
+    s_row = c.fetchone()
+    if not s_row:
         conn.close()
         raise HTTPException(404, "Student not found")
 
-    weight_to_label = {0.5: 'easy', 1.0: 'medium', 1.5: 'hard', 2.0: 'expert'}
+    student_name = s_row[0]
 
-    c.execute('''SELECT id, csv_task_id, title, description, estimated_time, difficulty_weight, count, archived
-                 FROM tasks WHERE student_id = ? ORDER BY archived ASC, task_order ASC, id ASC''', (student_id,))
-    tasks = [{
-        "id": r[0], "csv_task_id": r[1], "title": r[2], "description": r[3],
-        "estimated_time": r[4], "difficulty": weight_to_label.get(r[5], 'medium'),
-        "count": r[6], "archived": r[7]
-    } for r in c.fetchall()]
-    conn.close()
+    if date:
+        date_pattern = f"{date}%"
+        c.execute('''SELECT tc.id, tc.session_id, COALESCE(t.title, 'Group Drill') as title, 
+                            tc.actual_time, COALESCE(tc.status_color, 'green'), tc.completed_at
+                     FROM task_completions tc
+                     LEFT JOIN tasks t ON tc.task_id = t.id
+                     WHERE tc.student_id = ? AND tc.completed_at LIKE ?
+                     ORDER BY tc.completed_at DESC, tc.id DESC''', (student_id, date_pattern))
+    else:
+        c.execute('''SELECT tc.id, tc.session_id, COALESCE(t.title, 'Group Drill') as title, 
+                            tc.actual_time, COALESCE(tc.status_color, 'green'), tc.completed_at
+                     FROM task_completions tc
+                     LEFT JOIN tasks t ON tc.task_id = t.id
+                     WHERE tc.student_id = ?
+                     ORDER BY tc.completed_at DESC, tc.id DESC''', (student_id,))
 
-    return templates.TemplateResponse("view_tasks.html", {
-        "request": request,
-        "student_id": student_id,
-        "student_name": student[0],
-        "tasks": tasks
-    })
-
-@app.get("/tasks/export/{student_id}")
-async def export_tasks(student_id: int):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-
-    c.execute("SELECT name FROM students WHERE id = ?", (student_id,))
-    student = c.fetchone()
-    if not student:
-        conn.close()
-        raise HTTPException(404, "Student not found")
-
-
-    c.execute("SELECT csv_task_id, title, description, estimated_time, difficulty_weight, task_order, count FROM tasks WHERE student_id = ? AND archived = 0 ORDER BY task_order ASC, id ASC", (student_id,))
     rows = c.fetchall()
     conn.close()
 
-    weight_to_label = {0.5: 'easy', 1.0: 'medium', 1.5: 'hard', 2.0: 'expert'}
-
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(['taskid', 'task', 'description', 'estimated_time', 'difficulty', 'count'])
-    for i, row in enumerate(rows):
-        taskid = row[0] if row[0] else (i + 1)
-        writer.writerow([taskid, row[1], row[2] or '', row[3], weight_to_label.get(row[4], 'medium'), row[6]])
-
-    filename = f"{student[0].replace(' ', '_')}_tasks.csv"
-    return Response(
-        content=output.getvalue(),
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
-    )
-
-@app.post("/task/start/{student_id}/{task_id}")
-async def start_task(student_id: int, task_id: int):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    
-    c.execute("SELECT id FROM active_sessions WHERE student_id = ?", (student_id,))
-    if c.fetchone():
-        conn.close()
-        logger.warning(f"Student {student_id} tried to start task {task_id} but already has an active session")
-        raise HTTPException(400, "Please finish your current task first!")
-    
-    start_time = datetime.now().isoformat()
-    c.execute('''INSERT INTO active_sessions (student_id, task_id, start_time)
-                 VALUES (?, ?, ?)''', (student_id, task_id, start_time))
-    
-    conn.commit()
-    conn.close()
-    
-    logger.info(f"Student {student_id} started task {task_id} at {start_time}")
-    return {"success": True, "start_time": start_time}
-
-@app.post("/task/finish/{student_id}")
-async def finish_task(student_id: int):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    
-    c.execute('''SELECT a.id, a.task_id, a.start_time, t.estimated_time, t.difficulty_weight
-                 FROM active_sessions a
-                 JOIN tasks t ON a.task_id = t.id
-                 WHERE a.student_id = ?''', (student_id,))
-    
-    session = c.fetchone()
-    if not session:
-        conn.close()
-        logger.warning(f"Student {student_id} tried to finish a task but has no active session")
-        raise HTTPException(400, "No active task found")
-    
-    session_id, task_id, start_time, estimated_time, difficulty = session
-    
-    start = datetime.fromisoformat(start_time)
-    end = datetime.now()
-    actual_time = int((end - start).total_seconds())  # store as seconds
-
-    focus_score = calculate_focus_score(estimated_time, actual_time)
-    impact_score = calculate_impact_score(difficulty, focus_score)
-    
-    c.execute('''INSERT INTO task_completions 
-                 (student_id, task_id, start_time, end_time, actual_time, focus_score, impact_score)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)''',
-              (student_id, task_id, start_time, end.isoformat(), actual_time, 
-               focus_score, impact_score))
-    
-    c.execute("DELETE FROM active_sessions WHERE id = ?", (session_id,))
-    
-    conn.commit()
-    conn.close()
-    
-    logger.info(
-        f"Student {student_id} finished task {task_id}: "
-        f"actual={actual_time}s, estimated={estimated_time}s, "
-        f"focus={round(focus_score,2)}, impact={round(impact_score,2)}"
-    )
-    return {
-        "success": True,
-        "actual_time": actual_time,
-        "time_display": f"{actual_time}s",
-        "focus_score": round(focus_score, 2),
-        "impact_score": round(impact_score, 2)
-    }
-
-@app.post("/task/cancel/{student_id}")
-async def cancel_task(student_id: int):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    
-    c.execute("DELETE FROM active_sessions WHERE student_id = ?", (student_id,))
-    deleted = c.rowcount
-    
-    conn.commit()
-    conn.close()
-    
-    if deleted > 0:
-        logger.info(f"Student {student_id} cancelled their active task")
-        return {"success": True, "message": "Task cancelled"}
-    else:
-        logger.warning(f"Student {student_id} tried to cancel but had no active task")
-        raise HTTPException(400, "No active task to cancel")
-
-@app.post("/task/abandon/{student_id}")
-async def abandon_task(student_id: int):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-
-    c.execute('''SELECT a.id, a.task_id, a.start_time, t.estimated_time, t.difficulty_weight
-                 FROM active_sessions a
-                 JOIN tasks t ON a.task_id = t.id
-                 WHERE a.student_id = ?''', (student_id,))
-    session = c.fetchone()
-    if not session:
-        conn.close()
-        raise HTTPException(400, "No active task found")
-
-    session_id, task_id, start_time, estimated_time, difficulty = session
-    start = datetime.fromisoformat(start_time)
-    end = datetime.now()
-    actual_time = int((end - start).total_seconds())
-
-    focus_score = calculate_focus_score(estimated_time, actual_time)
-    impact_score = calculate_impact_score(difficulty, focus_score)
-
-    c.execute('''INSERT INTO task_completions
-                 (student_id, task_id, start_time, end_time, actual_time, focus_score, impact_score, completed)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, 0)''',
-              (student_id, task_id, start_time, end.isoformat(), actual_time, focus_score, impact_score))
-
-    c.execute("DELETE FROM active_sessions WHERE id = ?", (session_id,))
-    conn.commit()
-    conn.close()
-
-    logger.info(f"Student {student_id} abandoned task {task_id}: actual={actual_time}s (incomplete)")
-    return {"success": True, "actual_time": actual_time}
-
-@app.get("/results/{student_id}", response_class=HTMLResponse)
-async def results(request: Request, student_id: int):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    
-    c.execute("SELECT name FROM students WHERE id = ?", (student_id,))
-    student = c.fetchone()
-    if not student:
-        conn.close()
-        raise HTTPException(404, "Student not found")
-    
-    c.execute('''SELECT tc.id, t.title, t.description, t.estimated_time, tc.actual_time,
-                        tc.focus_score, tc.impact_score, tc.completed_at,
-                        COALESCE(tc.completed, 1)
-                 FROM task_completions tc
-                 JOIN tasks t ON tc.task_id = t.id
-                 WHERE tc.student_id = ?
-                 ORDER BY tc.completed_at DESC''', (student_id,))
-    
-    completions = []
-    total_time = 0
-    total_focus = 0
-    
-    for row in c.fetchall():
-        actual_seconds = row[4]
-        total_time += actual_seconds
-        total_focus += row[5]
+    sessions = {}
+    for r in rows:
+        raw_time = r[5]
+        date_key = raw_time[:10] if raw_time and len(raw_time) >= 10 else "Older Records"
         
-        completions.append({
-            "id": row[0],
-            "title": row[1],
-            "description": row[2],
-            "estimated_time": row[3],
-            "actual_time_display": f"{actual_seconds}s",
-            "actual_time": actual_seconds,
-            "focus_score": round(row[5], 2),
-            "impact_score": round(row[6], 2),
-            "completed_at": row[7],
-            "completed": row[8]
+        if date_key not in sessions:
+            sessions[date_key] = []
+            
+        sessions[date_key].append({
+            "id": r[0],
+            "session_id": r[1] or "N/A",
+            "title": r[2],
+            "actual_time": r[3],
+            "status_color": r[4],
+            "completed_at": r[5]
         })
-    
-    count = len(completions)
-    avg_focus = round(total_focus / count, 2) if count > 0 else 0
-    
-    streak = get_student_streak(student_id)
-    
-    conn.close()
-    
-    return templates.TemplateResponse("results.html", {
-        "request": request,
-        "student_id": student_id,
-        "student_name": student[0],
-        "completions": completions,
-        "total_tasks": count,
-        "total_time_display": f"{total_time}s",
-        "avg_focus_score": avg_focus,
-        "streak": streak
-    })
 
-@app.post("/student/{student_id}/reset")
-async def reset_student_data(student_id: int):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-
-    c.execute("SELECT id FROM students WHERE id = ?", (student_id,))
-    if not c.fetchone():
-        conn.close()
-        raise HTTPException(404, "Student not found")
-
-    c.execute("DELETE FROM active_sessions WHERE student_id = ?", (student_id,))
-    deleted = c.rowcount
-
-    conn.commit()
-    conn.close()
-
-    logger.info(f"Student {student_id} active session reset (deleted={deleted})")
-    return {"success": True, "message": "Active session cleared"}
-
-@app.post("/tasks/clear")
-async def clear_all_tasks(student_id: int = Form(...)):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-
-    c.execute("DELETE FROM task_completions WHERE student_id = ?", (student_id,))
-    completions_deleted = c.rowcount
-
-    c.execute("DELETE FROM active_sessions WHERE student_id = ?", (student_id,))
-
-    c.execute("DELETE FROM tasks WHERE student_id = ?", (student_id,))
-    tasks_deleted = c.rowcount
-
-    c.execute("DELETE FROM students WHERE id = ?", (student_id,))
-
-    conn.commit()
-    conn.close()
-
-    logger.info(f"Student {student_id} cleared their tasks and was removed: {tasks_deleted} tasks and {completions_deleted} completions deleted")
     return {
-        "success": True,
-        "tasks_deleted": tasks_deleted,
-        "completions_deleted": completions_deleted,
-        "message": "All tasks and related data have been cleared"
+        "student_id": student_id,
+        "student_name": student_name,
+        "sessions": sessions
     }
 
-@app.post("/tasks/clear/{student_id}")
-async def clear_student_tasks(student_id: int):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    
-    c.execute("DELETE FROM task_completions WHERE student_id = ?", (student_id,))
-    completions_deleted = c.rowcount
-    
-    c.execute("DELETE FROM active_sessions WHERE student_id = ?", (student_id,))
-    
-    c.execute("DELETE FROM tasks WHERE student_id = ?", (student_id,))
-    tasks_deleted = c.rowcount
-    
-    conn.commit()
-    conn.close()
-    
-    logger.info(f"Student {student_id} cleared all tasks: {tasks_deleted} tasks, {completions_deleted} completions deleted")
-    return {
-        "success": True,
-        "tasks_deleted": tasks_deleted,
-        "completions_deleted": completions_deleted,
-        "message": "All tasks and related data have been cleared"
-    }
-
-@app.get("/task/{task_id}/edit", response_class=HTMLResponse)
-async def edit_task_form(request: Request, task_id: int, student_id: int):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-
-    c.execute("SELECT id, title, description, estimated_time, difficulty_weight, count FROM tasks WHERE id = ? AND student_id = ?", (task_id, student_id))
-    task = c.fetchone()
-    conn.close()
-
-    if not task:
-        raise HTTPException(404, "Task not found")
-
-    difficulty_label = {0.5: 'easy', 1.0: 'medium', 1.5: 'hard', 2.0: 'expert'}.get(task[4], 'medium')
-
-    return templates.TemplateResponse("edit_task.html", {
-        "request": request,
-        "student_id": student_id,
-        "task": {
-            "id": task[0],
-            "title": task[1],
-            "description": task[2],
-            "estimated_time": task[3],
-            "difficulty": difficulty_label,
-            "count": task[5]
-        }
-    })
-
-@app.post("/task/{task_id}/update")
-async def update_task(
-    task_id: int,
-    student_id: int = Form(...),
-    title: str = Form(...),
-    description: str = Form(""),
-    estimated_time: int = Form(...),
-    difficulty: str = Form(""),
-    count: int = Form(10)
-):
-    title = clean_csv_value(title)
-    description = clean_csv_value(description)
-
-    if not title or len(title) < 2:
-        raise HTTPException(400, "Title must be at least 2 characters")
-
-    if estimated_time < 0:
-        raise HTTPException(400, "Estimated time cannot be negative")
-
-    if count < 0:
-        raise HTTPException(400, "Count cannot be negative")
-
-    difficulty_weight = parse_difficulty(difficulty, estimated_time)
-
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-
-    c.execute('''UPDATE tasks
-                 SET title = ?, description = ?, estimated_time = ?, difficulty_weight = ?, count = ?
-                 WHERE id = ? AND student_id = ?''',
-              (title, description, estimated_time, difficulty_weight, count, task_id, student_id))
-
-    conn.commit()
-    conn.close()
-
-    logger.info(f"Student {student_id} updated task {task_id}: title='{title}', estimated_time={estimated_time}s, difficulty={difficulty_weight}, count={count}")
-    return {"success": True, "message": "Task updated successfully"}
-
-@app.delete("/task/{task_id}")
-async def delete_task(task_id: int, student_id: int):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    
-    # Check if task has completions
-    c.execute("SELECT COUNT(*) FROM task_completions WHERE task_id = ?", (task_id,))
-    completion_count = c.fetchone()[0]
-    
-    # Delete task scoped to this student
-    c.execute("DELETE FROM tasks WHERE id = ? AND student_id = ?", (task_id, student_id))
-    deleted = c.rowcount
-    
-    # Delete any active sessions for this task
-    c.execute("DELETE FROM active_sessions WHERE task_id = ? AND student_id = ?", (task_id, student_id))
-    
-    conn.commit()
-    conn.close()
-    
-    if deleted > 0:
-        logger.info(f"Student {student_id} deleted task {task_id} (had {completion_count} completions)")
-        return {
-            "success": True,
-            "message": f"Task deleted (had {completion_count} completions in history)"
-        }
-    else:
-        logger.warning(f"Student {student_id} tried to delete task {task_id} but it was not found")
-        raise HTTPException(404, "Task not found")
 
 if __name__ == "__main__":
     import uvicorn
