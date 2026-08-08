@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Session Dashboard</title>
-    <link rel="stylesheet" href="/static/style.css?v=30">
+    <link rel="stylesheet" href="/static/style.css?v=31">
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         .student-check-grid {
@@ -653,16 +653,13 @@
             }
         }
 
-        // Process Space / Enter key action
         async function completeAllUnscoredAsDoneAndAdvance() {
             for (const s of students) {
                 const sid = s.id !== undefined ? s.id : s['id'];
-                // If student has NOT received a rating yet, record them as Done (Green)
                 if (!studentCompletions[sid]) {
                     await recordStudentStatus(sid, 'green');
                 }
             }
-            // Proceed to the next task
             nextTask();
         }
 
@@ -791,7 +788,6 @@
             startTaskTimer();
         }
 
-        // Updated Keyboard Shortcuts Listener
         document.addEventListener('keydown', function(e) {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
                 return;
@@ -799,28 +795,23 @@
 
             const key = e.key.toLowerCase();
 
-            // Spacebar or Enter Key: Marks all unscored students as Done (Green) & advances to next task
             if (e.key === ' ' || e.key === 'Enter') {
                 e.preventDefault();
+                // Prevent duplicate click triggering if a button is currently focused in browser DOM
+                if (document.activeElement && document.activeElement.tagName === 'BUTTON') {
+                    document.activeElement.blur();
+                }
                 completeAllUnscoredAsDoneAndAdvance();
-            } 
-            // N Key: Simply advances to next task
-            else if (key === 'n') {
+            } else if (key === 'n') {
                 e.preventDefault();
                 nextTask();
-            }
-            // B Key: Back / Previous Task
-            else if (key === 'b') {
+            } else if (key === 'b') {
                 e.preventDefault();
                 prevTask();
-            } 
-            // P Key: Pause / Unpause toggle
-            else if (key === 'p') {
+            } else if (key === 'p') {
                 e.preventDefault();
                 togglePause();
-            } 
-            // R Key: Restart Task
-            else if (key === 'r') {
+            } else if (key === 'r') {
                 e.preventDefault();
                 restartTask();
             }
