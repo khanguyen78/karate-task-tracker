@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Session Dashboard</title>
-    <link rel="stylesheet" href="/static/style.css?v=31">
+    <link rel="stylesheet" href="/static/style.css?v=32">
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         .student-check-grid {
@@ -320,6 +320,9 @@
         let studentCompletions = {};
         let studentAdvancedScoringModes = {};
 
+        // Lock to prevent double-advancing on duplicate events
+        let isAdvancing = false;
+
         function playChimeSound() {
             if (!enableChime) return;
             try {
@@ -399,6 +402,7 @@
             taskElapsedSeconds = 0;
             isPaused = false;
             studentCompletions = {};
+            isAdvancing = false; // Reset transition lock
             
             const pauseBadge = document.getElementById('pauseStatusBadge');
             if (pauseBadge) pauseBadge.style.display = 'none';
@@ -619,7 +623,7 @@
             if (studentCompletions[studentId]) return;
 
             studentCompletions[studentId] = { time: taskElapsedSeconds, status: statusColor };
-            card.classList.add('status-' + statusColor);
+            if (card) card.classList.add('status-' + statusColor);
 
             const labels = {
                 'green': '🟢 Done',
@@ -627,7 +631,9 @@
                 'blue': '🔵 Great'
             };
 
-            actions.innerHTML = `<span class="badge-recorded badge-${statusColor}">${labels[statusColor]} (${taskElapsedSeconds}s)</span>`;
+            if (actions) {
+                actions.innerHTML = `<span class="badge-recorded badge-${statusColor}">${labels[statusColor]} (${taskElapsedSeconds}s)</span>`;
+            }
 
             const current = tasks[currentTaskIdx];
             const formData = new FormData();
@@ -646,7 +652,8 @@
             }
 
             const completedCount = Object.keys(studentCompletions).length;
-            if (completedCount >= students.length) {
+            if (completedCount >= students.length && !isAdvancing) {
+                isAdvancing = true;
                 setTimeout(() => {
                     nextTask();
                 }, 400);
@@ -654,6 +661,9 @@
         }
 
         async function completeAllUnscoredAsDoneAndAdvance() {
+            if (isAdvancing) return;
+            isAdvancing = true;
+
             for (const s of students) {
                 const sid = s.id !== undefined ? s.id : s['id'];
                 if (!studentCompletions[sid]) {
@@ -664,7 +674,9 @@
         }
 
         async function nextTask() {
+            isAdvancing = true;
             playChimeSound();
+
             if (currentTaskIdx < tasks.length - 1) {
                 currentTaskIdx++;
                 startTaskTimer();
@@ -797,14 +809,14 @@
 
             if (e.key === ' ' || e.key === 'Enter') {
                 e.preventDefault();
-                // Prevent duplicate click triggering if a button is currently focused in browser DOM
-                if (document.activeElement && document.activeElement.tagName === 'BUTTON') {
+                e.stopPropagation();
+                if (document.activeElement) {
                     document.activeElement.blur();
                 }
                 completeAllUnscoredAsDoneAndAdvance();
             } else if (key === 'n') {
                 e.preventDefault();
-                nextTask();
+                if (!isAdvancing) nextTask();
             } else if (key === 'b') {
                 e.preventDefault();
                 prevTask();
