@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Session Dashboard</title>
-    <link rel="stylesheet" href="/static/style.css?v=32">
+    <link rel="stylesheet" href="/static/style.css?v=36">
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         .student-check-grid {
@@ -212,6 +212,12 @@
             {% if auto_advance %}
                 <span class="silent-badge" style="background:#e67e22; margin-left:6px;">⏩ Auto-Advance Active</span>
             {% endif %}
+            {% if unscored_yellow %}
+                <span class="silent-badge" style="background:#d97706; margin-left:6px;">🟡 Auto-Record Yellow ON</span>
+            {% endif %}
+            {% if min_seconds > 0 %}
+                <span class="silent-badge" style="background:#4a5568; margin-left:6px;">🚫 Skip Threshold: {{ min_seconds }}s</span>
+            {% endif %}
             {% if enable_chime %}
                 <span class="silent-badge" style="background:#27ae60; margin-left:6px;">🔔 Audio Chime ON</span>
             {% endif %}
@@ -308,7 +314,9 @@
         let students = {{ students | tojson }};
         const hideTimer = {{ 'true' if hide_timer else 'false' }};
         const autoAdvance = {{ 'true' if auto_advance else 'false' }};
+        const unscoredYellow = {{ 'true' if unscored_yellow else 'false' }};
         const enableChime = {{ 'true' if enable_chime else 'false' }};
+        const minRecordSeconds = {{ min_seconds }};
         const sessionId = "{{ session_id }}";
         let studentIdsArray = "{{ student_ids_str }}".split(",").filter(x => x.length > 0);
 
@@ -402,7 +410,7 @@
             taskElapsedSeconds = 0;
             isPaused = false;
             studentCompletions = {};
-            isAdvancing = false; // Reset transition lock
+            isAdvancing = false;
             
             const pauseBadge = document.getElementById('pauseStatusBadge');
             if (pauseBadge) pauseBadge.style.display = 'none';
@@ -427,8 +435,13 @@
 
                     const current = tasks[currentTaskIdx];
                     const est = current ? current.estimated_time : 0;
-                    if (autoAdvance && !isCountUpTask(current) && est > 0 && taskElapsedSeconds >= est) {
-                        nextTask();
+                    
+                    if (autoAdvance && !isCountUpTask(current) && est > 0 && taskElapsedSeconds >= est && !isAdvancing) {
+                        if (unscoredYellow) {
+                            autoAdvanceAsYellow();
+                        } else {
+                            nextTask();
+                        }
                     }
                 }
             }, 1000);
@@ -617,6 +630,11 @@
         }
 
         async function recordStudentStatus(studentId, statusColor) {
+            // Discard task if elapsed time is below minimum cycling threshold
+            if (taskElapsedSeconds < minRecordSeconds) {
+                return;
+            }
+
             const card = document.getElementById('card-student-' + studentId);
             const actions = document.getElementById('actions-student-' + studentId);
 
@@ -660,16 +678,33 @@
             }
         }
 
-        async function completeAllUnscoredAsDoneAndAdvance() {
-            if (isAdvancing) return;
-            isAdvancing = true;
-
+        // Saves unscored students with a chosen default color ('green' or 'yellow')
+        async function saveCurrentTaskData(defaultColor = 'green') {
+            // If cycling rapidly (below threshold), skip recording completely
+            if (taskElapsedSeconds < minRecordSeconds) {
+                return;
+            }
             for (const s of students) {
                 const sid = s.id !== undefined ? s.id : s['id'];
                 if (!studentCompletions[sid]) {
-                    await recordStudentStatus(sid, 'green');
+                    await recordStudentStatus(sid, defaultColor);
                 }
             }
+        }
+
+        // Space/Enter Key: Marks unscored as Done (Green)
+        async function completeAllUnscoredAsDoneAndAdvance() {
+            if (isAdvancing) return;
+            isAdvancing = true;
+            await saveCurrentTaskData('green');
+            nextTask();
+        }
+
+        // Auto-Advance Expiration: Marks unscored as Needs Work (Yellow)
+        async function autoAdvanceAsYellow() {
+            if (isAdvancing) return;
+            isAdvancing = true;
+            await saveCurrentTaskData('yellow');
             nextTask();
         }
 
@@ -684,6 +719,21 @@
                 clearInterval(timerInterval);
                 await showSessionSummary();
             }
+        }
+
+        async function prevTask() {
+            if (currentTaskIdx > 0) {
+                await saveCurrentTaskData('green');
+                currentTaskIdx--;
+                startTaskTimer();
+            } else {
+                alert("You are at the first task.");
+            }
+        }
+
+        async function restartTask() {
+            await saveCurrentTaskData('green');
+            startTaskTimer();
         }
 
         function toggleStudentDetails(studentId) {
@@ -787,19 +837,6 @@
             }
         }
 
-        function prevTask() {
-            if (currentTaskIdx > 0) {
-                currentTaskIdx--;
-                startTaskTimer();
-            } else {
-                alert("You are at the first task.");
-            }
-        }
-
-        function restartTask() {
-            startTaskTimer();
-        }
-
         document.addEventListener('keydown', function(e) {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
                 return;
@@ -810,7 +847,7 @@
             if (e.key === ' ' || e.key === 'Enter') {
                 e.preventDefault();
                 e.stopPropagation();
-                if (document.activeElement) {
+                if (document.activeElement && document.activeElement.tagName === 'BUTTON') {
                     document.activeElement.blur();
                 }
                 completeAllUnscoredAsDoneAndAdvance();

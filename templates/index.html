@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Karate Task Tracker</title>
-    <link rel="stylesheet" href="/static/style.css?v=29">
+    <link rel="stylesheet" href="/static/style.css?v=31">
     <style>
         .toggle-container {
             display: flex;
@@ -14,7 +14,7 @@
             font-size: 1.05rem;
             cursor: pointer;
         }
-        .toggle-container input {
+        .toggle-container input[type="checkbox"] {
             width: 20px;
             height: 20px;
             cursor: pointer;
@@ -52,13 +52,31 @@
             overflow-x: auto;
             margin: 10px 0 0 0;
         }
+        .number-input-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 14px 0 10px 0;
+            font-size: 1.05rem;
+        }
+        .number-input-row input {
+            width: 70px;
+            padding: 6px 10px;
+            font-size: 1rem;
+            border: 2px solid #cbd5e0;
+            border-radius: 8px;
+            outline: none;
+        }
+        .number-input-row input:focus {
+            border-color: #667eea;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>🥋 Karate Task Tracker</h1>
-            <p class="subtitle">Session Tracker</p>
+            <p class="subtitle">Track training sessions for single or multiple students!</p>
         </div>
 
         <div class="card">
@@ -97,13 +115,24 @@
                     
                     <label class="toggle-container">
                         <input type="checkbox" name="auto_advance" value="true">
-                        <span>⏩ <strong>Auto-advance on Countdown Expiration</strong> (Skipped students are not scored)</span>
+                        <span>⏩ <strong>Auto-advance on Countdown Expiration</strong></span>
+                    </label>
+
+                    <label class="toggle-container">
+                        <input type="checkbox" name="unscored_yellow" value="true">
+                        <span>🟡 <strong>Record Unscored Auto-Advanced Tasks as "Needs Work" (Yellow)</strong> (Default: OFF / Skipped)</span>
                     </label>
 
                     <label class="toggle-container">
                         <input type="checkbox" name="enable_chime" value="true">
                         <span>🔔 <strong>Play Audio Chime on Task Transitions</strong> (Default: OFF)</span>
                     </label>
+
+                    <div class="number-input-row">
+                        <span>🚫 <strong>Skip/Discard cycling threshold:</strong></span>
+                        <input type="number" id="min_seconds" name="min_seconds" value="3" min="0" max="60">
+                        <span class="small-text">(Tasks taking less than this number of seconds are not recorded)</span>
+                    </div>
                 </div>
 
                 <button type="submit" class="btn btn-primary btn-large">
