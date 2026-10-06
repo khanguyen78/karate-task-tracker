@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Karate Task Tracker</title>
-    <link rel="stylesheet" href="/static/style.css?v=31">
+    <link rel="stylesheet" href="/static/style.css?v=36">
     <style>
         .toggle-container {
             display: flex;
@@ -59,17 +59,16 @@
             margin: 14px 0 10px 0;
             font-size: 1.05rem;
         }
-        .number-input-row input {
-            width: 70px;
-            padding: 6px 10px;
+        .number-input-row input, select.theme-select {
+            padding: 8px 12px;
             font-size: 1rem;
             border: 2px solid #cbd5e0;
             border-radius: 8px;
             outline: none;
         }
-        .number-input-row input:focus {
-            border-color: #667eea;
-        }
+        .number-input-row input { width: 70px; }
+        .number-input-row input:focus, select.theme-select:focus { border-color: #667eea; }
+        select.theme-select { width: 100%; max-width: 380px; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -108,6 +107,20 @@
                 </div>
 
                 <div class="form-group-card">
+                    <label for="theme" style="font-weight:600; display:block; margin-bottom:8px;">
+                        🎨 3. Dashboard Theme (Sensory-Friendly Options Available):
+                    </label>
+                    <select name="theme" id="theme" class="theme-select">
+                        <option value="ocean">🌊 Calm Ocean (Soft Blues - Sensory Friendly)</option>
+                        <option value="forest">🌲 Gentle Forest (Muted Greens - Sensory Friendly)</option>
+                        <option value="lavender">💜 Lavender Dream (Soft Purples - Sensory Friendly)</option>
+                        <option value="sunset">🌅 Warm Sunset (Soft Peach - Sensory Friendly)</option>
+                        <option value="light">☀️ Light Mode (Clean & Bright)</option>
+                        <option value="dark">🌙 Dark Mode (High Contrast)</option>
+                    </select>
+                </div>
+
+                <div class="form-group-card">
                     <label class="toggle-container">
                         <input type="checkbox" name="show_timer" value="true">
                         <span>⏱️ <strong>Display Visible Timer</strong> (Default: Hidden in background)</span>
@@ -120,18 +133,23 @@
 
                     <label class="toggle-container">
                         <input type="checkbox" name="unscored_yellow" value="true">
-                        <span>🟡 <strong>Record Unscored Auto-Advanced Tasks as "Needs Work" (Yellow)</strong> (Default: OFF / Skipped)</span>
+                        <span>🟡 <strong>Record Unscored Auto-Advanced Tasks as "Needs Work" (Yellow)</strong></span>
+                    </label>
+
+                    <label class="toggle-container">
+                        <input type="checkbox" name="allow_pause" value="true" checked>
+                        <span>⏸️ <strong>Enable Session Pause</strong> (P key)</span>
                     </label>
 
                     <label class="toggle-container">
                         <input type="checkbox" name="enable_chime" value="true">
-                        <span>🔔 <strong>Play Audio Chime on Task Transitions</strong> (Default: OFF)</span>
+                        <span>🔔 <strong>Play Audio Chime on Task Transitions</strong></span>
                     </label>
 
                     <div class="number-input-row">
                         <span>🚫 <strong>Skip/Discard cycling threshold:</strong></span>
-                        <input type="number" id="min_seconds" name="min_seconds" value="3" min="0" max="60">
-                        <span class="small-text">(Tasks taking less than this number of seconds are not recorded)</span>
+                        <input type="number" id="min_seconds" name="min_seconds" value="20" min="0" max="60">
+                        <span class="small-text">(Tasks taking less than this number of seconds are ignored)</span>
                     </div>
                 </div>
 
@@ -154,10 +172,11 @@ Water Break,Rest and hydrate,60,countup,💧</pre>
                 </div>
 
                 <div class="instruction-section">
-                    <h3>Differentiated Scoring Modes</h3>
+                    <h3>Differentiated Scoring Modes (Default: Simple)</h3>
                     <ul style="padding-left: 20px; line-height: 1.8;">
-                        <li>🌱 <strong>Basic Scoring:</strong> Binary 🟢 Done / 🟡 Needs Work (prevents frustration and decision fatigue).</li>
-                        <li>⭐️ <strong>Advanced Scoring:</strong> Full 🟢 Done / 🟡 Needs Work / 🔵 Great tiers.</li>
+                        <li>🟢 <strong>Simple Scoring:</strong> Single 🟢 Done button (zero-stress tracking).</li>
+                        <li>🌱 <strong>Basic Scoring:</strong> 🟢 Done / 🟡 Needs Work (reduces decision fatigue).</li>
+                        <li>⭐️ <strong>Advanced Scoring:</strong> Full 🔵 Great / 🟢 Done / 🟡 Needs Work tiers.</li>
                     </ul>
                 </div>
             </div>

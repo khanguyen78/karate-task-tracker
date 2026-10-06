@@ -134,7 +134,6 @@
             document.querySelectorAll('.student-list-item').forEach(el => el.classList.remove('active'));
             if (element) element.classList.add('active');
 
-            // Reset calendar filter when switching students
             document.getElementById('historyDatePicker').value = '';
             loadStudentHistory();
         }
@@ -185,7 +184,7 @@
                         const statusPills = {
                             'green': '<span class="pill pill-green">🟢 Done</span>',
                             'yellow': '<span class="pill pill-yellow">🟡 Work Needed</span>',
-                            'blue': '<span class="pill pill-blue">🔵 Excellent</span>'
+                            'blue': '<span class="pill pill-blue">🔵 Great</span>'
                         };
 
                         row.innerHTML = `

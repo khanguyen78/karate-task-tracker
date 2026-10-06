@@ -97,17 +97,14 @@ def init_db():
                   FOREIGN KEY (student_id) REFERENCES students(id),
                   FOREIGN KEY (task_id) REFERENCES tasks(id))''')
 
-    # Safe Schema Migrations for existing databases
     try:
         c.execute("ALTER TABLE tasks ADD COLUMN archived INTEGER DEFAULT 0")
     except Exception:
         pass
-
     try:
         c.execute("ALTER TABLE task_completions ADD COLUMN status_color TEXT DEFAULT 'green'")
     except Exception:
         pass
-
     try:
         c.execute("ALTER TABLE task_completions ADD COLUMN session_id TEXT")
     except Exception:
@@ -140,14 +137,10 @@ def auto_detect_icon(title: str, custom_icon: str = "") -> str:
 
 
 def calculate_difficulty_weight(estimated_time: int) -> float:
-    if estimated_time <= 300:
-        return 0.5
-    elif estimated_time <= 900:
-        return 1.0
-    elif estimated_time <= 1800:
-        return 1.5
-    else:
-        return 2.0
+    if estimated_time <= 300: return 0.5
+    elif estimated_time <= 900: return 1.0
+    elif estimated_time <= 1800: return 1.5
+    else: return 2.0
 
 
 DIFFICULTY_MAP = {
@@ -164,13 +157,10 @@ def parse_difficulty(value: str, estimated_time: int) -> float:
 
 
 def calculate_focus_score(estimated: int, actual: int) -> float:
-    if estimated == 0:
-        return 1.0
+    if estimated == 0: return 1.0
     ratio = actual / estimated
-    if ratio <= 1.0:
-        return min(1.0, 2.0 - ratio)
-    else:
-        return max(0.1, 1.0 / ratio)
+    if ratio <= 1.0: return min(1.0, 2.0 - ratio)
+    else: return max(0.1, 1.0 / ratio)
 
 
 def calculate_impact_score(difficulty: float, focus: float) -> float:
@@ -190,11 +180,13 @@ async def home(request: Request):
 @app.post("/session/create")
 async def create_session(
     names: str = Form(...), 
+    theme: str = Form("ocean"),
     show_timer: bool = Form(False),
     auto_advance: bool = Form(False),
     enable_chime: bool = Form(False),
     unscored_yellow: bool = Form(False),
-    min_seconds: int = Form(3),
+    allow_pause: bool = Form(False),
+    min_seconds: int = Form(20),
     file: UploadFile = File(None)
 ):
     raw_names = [clean_csv_value(n).title() for n in names.split(",") if clean_csv_value(n)]
@@ -223,17 +215,14 @@ async def create_session(
             incoming = []
             for row in reader:
                 title = clean_csv_value(row.get('task', ''))
-                if not title:
-                    continue
+                if not title: continue
                 description = clean_csv_value(row.get('description', ''))
                 time_str = clean_csv_value(row.get('estimated_time', ''))
                 diff_str = clean_csv_value(row.get('difficulty', '')).lower()
                 icon_str = clean_csv_value(row.get('icon', ''))
                 
-                try:
-                    estimated_time = int(''.join(filter(str.isdigit, time_str))) if time_str else 900
-                except Exception:
-                    estimated_time = 900
+                try: estimated_time = int(''.join(filter(str.isdigit, time_str))) if time_str else 900
+                except Exception: estimated_time = 900
 
                 is_countup = 'countup' in diff_str or 'up' in diff_str or 'plank' in title.lower() or 'hold' in title.lower() or 'break' in title.lower() or 'rest' in title.lower()
                 difficulty = 0.0 if is_countup else parse_difficulty(diff_str, estimated_time)
@@ -257,10 +246,11 @@ async def create_session(
     advance_flag = "1" if auto_advance else "0"
     chime_flag = "1" if enable_chime else "0"
     yellow_flag = "1" if unscored_yellow else "0"
+    pause_flag = "1" if allow_pause else "0"
     min_sec_val = max(0, min_seconds)
     
     return RedirectResponse(
-        f"/session/dashboard?ids={ids_param}&hide_timer={timer_flag}&auto_advance={advance_flag}&enable_chime={chime_flag}&unscored_yellow={yellow_flag}&min_seconds={min_sec_val}&session_id={session_id}",
+        f"/session/dashboard?ids={ids_param}&theme={theme}&hide_timer={timer_flag}&auto_advance={advance_flag}&enable_chime={chime_flag}&unscored_yellow={yellow_flag}&allow_pause={pause_flag}&min_seconds={min_sec_val}&session_id={session_id}",
         status_code=303
     )
 
@@ -292,16 +282,17 @@ async def add_student_mid_session(name: str = Form(...)):
 async def session_dashboard(
     request: Request, 
     ids: str, 
+    theme: str = "ocean",
     hide_timer: str = "1", 
     auto_advance: str = "0", 
     enable_chime: str = "0", 
     unscored_yellow: str = "0",
-    min_seconds: int = 3,
+    allow_pause: str = "1",
+    min_seconds: int = 20,
     session_id: str = "default"
 ):
     student_ids = [int(i) for i in ids.split(",") if i.isdigit()]
-    if not student_ids:
-        raise HTTPException(400, "No valid students specified.")
+    if not student_ids: raise HTTPException(400, "No valid students specified.")
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -339,11 +330,13 @@ async def session_dashboard(
         "students": students,
         "student_ids_str": ids,
         "session_id": session_id,
+        "theme": theme,
         "tasks": tasks,
         "hide_timer": hide_timer == "1",
         "auto_advance": auto_advance == "1",
         "enable_chime": enable_chime == "1",
         "unscored_yellow": unscored_yellow == "1",
+        "allow_pause": allow_pause == "1",
         "min_seconds": max(0, min_seconds)
     })
 
@@ -431,10 +424,7 @@ async def session_summary(
         yellow_count = sum(1 for r in rows if r[1] == 'yellow')
         blue_count = sum(1 for r in rows if r[1] == 'blue')
 
-        tasks_details = [
-            {"title": r[2], "actual_time": r[0], "status": r[1]}
-            for r in rows
-        ]
+        tasks_details = [{"title": r[2], "actual_time": r[0], "status": r[1]} for r in rows]
 
         summary_data.append({
             "student_id": sid,
@@ -448,14 +438,8 @@ async def session_summary(
         })
 
     conn.close()
-    return {
-        "date": formatted_date,
-        "time": formatted_time,
-        "summary": summary_data
-    }
+    return {"date": formatted_date, "time": formatted_time, "summary": summary_data}
 
-
-# --- ADMIN CONTROL PANEL ROUTES ---
 
 @app.get("/admin", response_class=HTMLResponse)
 async def admin_dashboard(request: Request):
@@ -470,15 +454,7 @@ async def admin_dashboard(request: Request):
                  ORDER BY last_active DESC, s.name ASC''')
     students_raw = c.fetchall()
     
-    students = []
-    for row in students_raw:
-        students.append({
-            "id": row[0],
-            "name": row[1],
-            "total_completions": row[2],
-            "last_active": row[3] if row[3] else "Never"
-        })
-        
+    students = [{"id": row[0], "name": row[1], "total_completions": row[2], "last_active": row[3] if row[3] else "Never"} for row in students_raw]
     conn.close()
     return templates.TemplateResponse("admin.html", {"request": request, "students": students})
 
@@ -520,23 +496,13 @@ async def admin_student_history(student_id: int, date: str = None):
         raw_time = r[5]
         date_key = raw_time[:10] if raw_time and len(raw_time) >= 10 else "Older Records"
         
-        if date_key not in sessions:
-            sessions[date_key] = []
-            
+        if date_key not in sessions: sessions[date_key] = []
         sessions[date_key].append({
-            "id": r[0],
-            "session_id": r[1] or "N/A",
-            "title": r[2],
-            "actual_time": r[3],
-            "status_color": r[4],
-            "completed_at": r[5]
+            "id": r[0], "session_id": r[1] or "N/A", "title": r[2],
+            "actual_time": r[3], "status_color": r[4], "completed_at": r[5]
         })
 
-    return {
-        "student_id": student_id,
-        "student_name": student_name,
-        "sessions": sessions
-    }
+    return {"student_id": student_id, "student_name": student_name, "sessions": sessions}
 
 
 if __name__ == "__main__":
