@@ -1,20 +1,23 @@
 task,description,estimated_time,difficulty
 Tie your belt,, 60, easy
-Student Oath,, 120, easy
-Run 5 laps, , 180, easy
-Planks - 30 seconds, , 0, countup
-10 situps, , 180, easy
-Horse Riding Stance: Punch, , 180, easy
-Horse Riding Stance: low block, , 180, easy
-Front stance Punch, , 180, medium
-Front stance low block, , 180, medium
-Back stance inner forearm block, , 180, medium
+Student Oath,, 90, easy
+Run 5 laps, , 90, easy
+Planks - 40 seconds, , 0, countup
+20 situps, , 120, easy
+Horse Riding Stance: Punch, , 120, easy
+Horse Riding Stance: low block, , 120, easy
+Horse Riding Stance: inner forearm, , 120, easy
+Front stance Punch, , 120, medium
+Front stance low block, , 120, medium
+Back stance inner forearm block, , 120, medium
 Water break, , 60, easy
-Side Kick,, 300, medium
-Round house kick, , 300, medium
-Punch & block drills, , 300, medium
+Side Kick,, 120, medium
+Cross behind Side Kick,, 120, medium
+Round house kick, , 120, medium
+Cross in front Round house kick, , 120, medium
+Punch & block drills, , 180, medium
 Sparring, , 360, medium
 Kata - Chon Ji, , 360, hard
 Break, Sit down criss cross and wait for others to finish their katas, 0, countup
 Cooldown and meditation, close your eyes(optional). sit on knees do not move, 60, countup
-Student Oath,Remember to stand in the student oath stanch, 120, easy
+Student Oath,Remember to stand in the student oath stanch, 90, easy

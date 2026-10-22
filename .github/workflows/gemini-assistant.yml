@@ -1,0 +1,26 @@
+name: Gemini Assistant
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: 'The Gemini command to execute'
+        required: true
+        type: string
+
+jobs:
+  gemini-run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run Gemini CLI
+        uses: google-github-actions/run-gemini-cli@v1
+        with:
+          command: ${{ github.event.inputs.command }}
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

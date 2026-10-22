@@ -187,6 +187,7 @@ async def create_session(
     show_timer: bool = Form(False),
     auto_advance: bool = Form(False),
     enable_chime: bool = Form(False),
+    unscored_yellow: bool = Form(False),
     file: UploadFile = File(None)
 ):
     raw_names = [clean_csv_value(n).title() for n in names.split(",") if clean_csv_value(n)]
@@ -248,8 +249,9 @@ async def create_session(
     timer_flag = "1" if hide_timer else "0"
     advance_flag = "1" if auto_advance else "0"
     chime_flag = "1" if enable_chime else "0"
+    yellow_flag = "1" if unscored_yellow else "0"
     
-    return RedirectResponse(f"/session/dashboard?ids={ids_param}&hide_timer={timer_flag}&auto_advance={advance_flag}&enable_chime={chime_flag}&session_id={session_id}", status_code=303)
+    return RedirectResponse(f"/session/dashboard?ids={ids_param}&hide_timer={timer_flag}&auto_advance={advance_flag}&enable_chime={chime_flag}&unscored_yellow={yellow_flag}&session_id={session_id}", status_code=303)
 
 
 @app.post("/session/add-student")
@@ -276,7 +278,15 @@ async def add_student_mid_session(name: str = Form(...)):
 
 
 @app.get("/session/dashboard", response_class=HTMLResponse)
-async def session_dashboard(request: Request, ids: str, hide_timer: str = "1", auto_advance: str = "0", enable_chime: str = "0", session_id: str = "default"):
+async def session_dashboard(
+    request: Request, 
+    ids: str, 
+    hide_timer: str = "1", 
+    auto_advance: str = "0", 
+    enable_chime: str = "0", 
+    unscored_yellow: str = "0",
+    session_id: str = "default"
+):
     student_ids = [int(i) for i in ids.split(",") if i.isdigit()]
     if not student_ids:
         raise HTTPException(400, "No valid students specified.")
@@ -320,7 +330,8 @@ async def session_dashboard(request: Request, ids: str, hide_timer: str = "1", a
         "tasks": tasks,
         "hide_timer": hide_timer == "1",
         "auto_advance": auto_advance == "1",
-        "enable_chime": enable_chime == "1"
+        "enable_chime": enable_chime == "1",
+        "unscored_yellow": unscored_yellow == "1"
     })
 
 

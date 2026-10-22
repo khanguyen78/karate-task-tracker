@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Karate Task Tracker</title>
-    <link rel="stylesheet" href="/static/style.css?v=29">
+    <link rel="stylesheet" href="/static/style.css?v=30">
     <style>
         .toggle-container {
             display: flex;
@@ -58,7 +58,7 @@
     <div class="container">
         <div class="header">
             <h1>🥋 Karate Task Tracker</h1>
-            <p class="subtitle">Session Tracker</p>
+            <p class="subtitle">Track training sessions for single or multiple students!</p>
         </div>
 
         <div class="card">
@@ -97,7 +97,12 @@
                     
                     <label class="toggle-container">
                         <input type="checkbox" name="auto_advance" value="true">
-                        <span>⏩ <strong>Auto-advance on Countdown Expiration</strong> (Skipped students are not scored)</span>
+                        <span>⏩ <strong>Auto-advance on Countdown Expiration</strong></span>
+                    </label>
+
+                    <label class="toggle-container">
+                        <input type="checkbox" name="unscored_yellow" value="true">
+                        <span>🟡 <strong>Record Unscored Auto-Advanced Tasks as "Needs Work" (Yellow)</strong> (Default: OFF / Skipped)</span>
                     </label>
 
                     <label class="toggle-container">
