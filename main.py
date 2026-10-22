@@ -97,6 +97,12 @@ def init_db():
                   FOREIGN KEY (student_id) REFERENCES students(id),
                   FOREIGN KEY (task_id) REFERENCES tasks(id))''')
 
+    # Safe Schema Migrations for existing databases
+    try:
+        c.execute("ALTER TABLE tasks ADD COLUMN archived INTEGER DEFAULT 0")
+    except Exception:
+        pass
+
     try:
         c.execute("ALTER TABLE task_completions ADD COLUMN status_color TEXT DEFAULT 'green'")
     except Exception:
@@ -188,6 +194,10 @@ async def create_session(
     auto_advance: bool = Form(False),
     enable_chime: bool = Form(False),
     unscored_yellow: bool = Form(False),
+<<<<<<< HEAD
+=======
+    min_seconds: int = Form(3),
+>>>>>>> 5faed20fbcce37bcbb52b0ae6422d4226dd37401
     file: UploadFile = File(None)
 ):
     raw_names = [clean_csv_value(n).title() for n in names.split(",") if clean_csv_value(n)]
@@ -250,8 +260,17 @@ async def create_session(
     advance_flag = "1" if auto_advance else "0"
     chime_flag = "1" if enable_chime else "0"
     yellow_flag = "1" if unscored_yellow else "0"
+<<<<<<< HEAD
     
     return RedirectResponse(f"/session/dashboard?ids={ids_param}&hide_timer={timer_flag}&auto_advance={advance_flag}&enable_chime={chime_flag}&unscored_yellow={yellow_flag}&session_id={session_id}", status_code=303)
+=======
+    min_sec_val = max(0, min_seconds)
+    
+    return RedirectResponse(
+        f"/session/dashboard?ids={ids_param}&hide_timer={timer_flag}&auto_advance={advance_flag}&enable_chime={chime_flag}&unscored_yellow={yellow_flag}&min_seconds={min_sec_val}&session_id={session_id}",
+        status_code=303
+    )
+>>>>>>> 5faed20fbcce37bcbb52b0ae6422d4226dd37401
 
 
 @app.post("/session/add-student")
@@ -285,6 +304,10 @@ async def session_dashboard(
     auto_advance: str = "0", 
     enable_chime: str = "0", 
     unscored_yellow: str = "0",
+<<<<<<< HEAD
+=======
+    min_seconds: int = 3,
+>>>>>>> 5faed20fbcce37bcbb52b0ae6422d4226dd37401
     session_id: str = "default"
 ):
     student_ids = [int(i) for i in ids.split(",") if i.isdigit()]
@@ -331,7 +354,12 @@ async def session_dashboard(
         "hide_timer": hide_timer == "1",
         "auto_advance": auto_advance == "1",
         "enable_chime": enable_chime == "1",
+<<<<<<< HEAD
         "unscored_yellow": unscored_yellow == "1"
+=======
+        "unscored_yellow": unscored_yellow == "1",
+        "min_seconds": max(0, min_seconds)
+>>>>>>> 5faed20fbcce37bcbb52b0ae6422d4226dd37401
     })
 
 

@@ -4,7 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Session Dashboard</title>
+<<<<<<< HEAD
     <link rel="stylesheet" href="/static/style.css?v=35">
+=======
+    <link rel="stylesheet" href="/static/style.css?v=36">
+>>>>>>> 5faed20fbcce37bcbb52b0ae6422d4226dd37401
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         .student-check-grid {
@@ -215,6 +219,12 @@
             {% if unscored_yellow %}
                 <span class="silent-badge" style="background:#d97706; margin-left:6px;">🟡 Auto-Record Yellow ON</span>
             {% endif %}
+<<<<<<< HEAD
+=======
+            {% if min_seconds > 0 %}
+                <span class="silent-badge" style="background:#4a5568; margin-left:6px;">🚫 Skip Threshold: {{ min_seconds }}s</span>
+            {% endif %}
+>>>>>>> 5faed20fbcce37bcbb52b0ae6422d4226dd37401
             {% if enable_chime %}
                 <span class="silent-badge" style="background:#27ae60; margin-left:6px;">🔔 Audio Chime ON</span>
             {% endif %}
@@ -313,6 +323,7 @@
         const autoAdvance = {{ 'true' if auto_advance else 'false' }};
         const unscoredYellow = {{ 'true' if unscored_yellow else 'false' }};
         const enableChime = {{ 'true' if enable_chime else 'false' }};
+        const minRecordSeconds = {{ min_seconds }};
         const sessionId = "{{ session_id }}";
         let studentIdsArray = "{{ student_ids_str }}".split(",").filter(x => x.length > 0);
 
@@ -626,6 +637,11 @@
         }
 
         async function recordStudentStatus(studentId, statusColor) {
+            // Discard task if elapsed time is below minimum cycling threshold
+            if (taskElapsedSeconds < minRecordSeconds) {
+                return;
+            }
+
             const card = document.getElementById('card-student-' + studentId);
             const actions = document.getElementById('actions-student-' + studentId);
 
@@ -669,7 +685,16 @@
             }
         }
 
+<<<<<<< HEAD
         async function saveCurrentTaskData(defaultColor = 'green') {
+=======
+        // Saves unscored students with a chosen default color ('green' or 'yellow')
+        async function saveCurrentTaskData(defaultColor = 'green') {
+            // If cycling rapidly (below threshold), skip recording completely
+            if (taskElapsedSeconds < minRecordSeconds) {
+                return;
+            }
+>>>>>>> 5faed20fbcce37bcbb52b0ae6422d4226dd37401
             for (const s of students) {
                 const sid = s.id !== undefined ? s.id : s['id'];
                 if (!studentCompletions[sid]) {
@@ -678,6 +703,10 @@
             }
         }
 
+<<<<<<< HEAD
+=======
+        // Space/Enter Key: Marks unscored as Done (Green)
+>>>>>>> 5faed20fbcce37bcbb52b0ae6422d4226dd37401
         async function completeAllUnscoredAsDoneAndAdvance() {
             if (isAdvancing) return;
             isAdvancing = true;
@@ -685,6 +714,10 @@
             nextTask();
         }
 
+<<<<<<< HEAD
+=======
+        // Auto-Advance Expiration: Marks unscored as Needs Work (Yellow)
+>>>>>>> 5faed20fbcce37bcbb52b0ae6422d4226dd37401
         async function autoAdvanceAsYellow() {
             if (isAdvancing) return;
             isAdvancing = true;
