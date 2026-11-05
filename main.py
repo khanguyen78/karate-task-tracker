@@ -191,13 +191,13 @@ async def home(request: Request):
 async def create_session(
     names: str = Form(...), 
     show_timer: bool = Form(False),
+    timer_color_change: bool = Form(False),
     auto_advance: bool = Form(False),
     enable_chime: bool = Form(False),
     unscored_yellow: bool = Form(False),
-<<<<<<< HEAD
-=======
-    min_seconds: int = Form(3),
->>>>>>> 5faed20fbcce37bcbb52b0ae6422d4226dd37401
+    enable_pause: bool = Form(False),
+    enable_back: bool = Form(False),
+    min_seconds: int = Form(15),
     file: UploadFile = File(None)
 ):
     raw_names = [clean_csv_value(n).title() for n in names.split(",") if clean_csv_value(n)]
@@ -257,20 +257,18 @@ async def create_session(
     ids_param = ",".join(str(i) for i in student_ids)
     hide_timer = not show_timer
     timer_flag = "1" if hide_timer else "0"
+    color_flag = "1" if timer_color_change else "0"
     advance_flag = "1" if auto_advance else "0"
     chime_flag = "1" if enable_chime else "0"
     yellow_flag = "1" if unscored_yellow else "0"
-<<<<<<< HEAD
-    
-    return RedirectResponse(f"/session/dashboard?ids={ids_param}&hide_timer={timer_flag}&auto_advance={advance_flag}&enable_chime={chime_flag}&unscored_yellow={yellow_flag}&session_id={session_id}", status_code=303)
-=======
+    pause_flag = "1" if enable_pause else "0"
+    back_flag = "1" if enable_back else "0"
     min_sec_val = max(0, min_seconds)
     
     return RedirectResponse(
-        f"/session/dashboard?ids={ids_param}&hide_timer={timer_flag}&auto_advance={advance_flag}&enable_chime={chime_flag}&unscored_yellow={yellow_flag}&min_seconds={min_sec_val}&session_id={session_id}",
+        f"/session/dashboard?ids={ids_param}&hide_timer={timer_flag}&timer_color_change={color_flag}&auto_advance={advance_flag}&enable_chime={chime_flag}&unscored_yellow={yellow_flag}&enable_pause={pause_flag}&enable_back={back_flag}&min_seconds={min_sec_val}&session_id={session_id}",
         status_code=303
     )
->>>>>>> 5faed20fbcce37bcbb52b0ae6422d4226dd37401
 
 
 @app.post("/session/add-student")
@@ -301,13 +299,13 @@ async def session_dashboard(
     request: Request, 
     ids: str, 
     hide_timer: str = "1", 
+    timer_color_change: str = "0",
     auto_advance: str = "0", 
     enable_chime: str = "0", 
     unscored_yellow: str = "0",
-<<<<<<< HEAD
-=======
-    min_seconds: int = 3,
->>>>>>> 5faed20fbcce37bcbb52b0ae6422d4226dd37401
+    enable_pause: str = "0",
+    enable_back: str = "0",
+    min_seconds: int = 15,
     session_id: str = "default"
 ):
     student_ids = [int(i) for i in ids.split(",") if i.isdigit()]
@@ -352,14 +350,13 @@ async def session_dashboard(
         "session_id": session_id,
         "tasks": tasks,
         "hide_timer": hide_timer == "1",
+        "timer_color_change": timer_color_change == "1",
         "auto_advance": auto_advance == "1",
         "enable_chime": enable_chime == "1",
-<<<<<<< HEAD
-        "unscored_yellow": unscored_yellow == "1"
-=======
         "unscored_yellow": unscored_yellow == "1",
+        "enable_pause": enable_pause == "1",
+        "enable_back": enable_back == "1",
         "min_seconds": max(0, min_seconds)
->>>>>>> 5faed20fbcce37bcbb52b0ae6422d4226dd37401
     })
 
 

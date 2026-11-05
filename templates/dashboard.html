@@ -4,11 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Session Dashboard</title>
-<<<<<<< HEAD
-    <link rel="stylesheet" href="/static/style.css?v=35">
-=======
     <link rel="stylesheet" href="/static/style.css?v=36">
->>>>>>> 5faed20fbcce37bcbb52b0ae6422d4226dd37401
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         .student-check-grid {
@@ -219,14 +215,20 @@
             {% if unscored_yellow %}
                 <span class="silent-badge" style="background:#d97706; margin-left:6px;">🟡 Auto-Record Yellow ON</span>
             {% endif %}
-<<<<<<< HEAD
-=======
             {% if min_seconds > 0 %}
                 <span class="silent-badge" style="background:#4a5568; margin-left:6px;">🚫 Skip Threshold: {{ min_seconds }}s</span>
             {% endif %}
->>>>>>> 5faed20fbcce37bcbb52b0ae6422d4226dd37401
             {% if enable_chime %}
                 <span class="silent-badge" style="background:#27ae60; margin-left:6px;">🔔 Audio Chime ON</span>
+            {% endif %}
+            {% if timer_color_change %}
+                <span class="silent-badge" style="background:#805ad5; margin-left:6px;">🎨 Timer Color Change ON</span>
+            {% endif %}
+            {% if enable_pause %}
+                <span class="silent-badge" style="background:#3182ce; margin-left:6px;">⏸️ Pause (P) ON</span>
+            {% endif %}
+            {% if enable_back %}
+                <span class="silent-badge" style="background:#2b6cb0; margin-left:6px;">⏮️ Back (B) ON</span>
             {% endif %}
             <span class="pause-badge" id="pauseStatusBadge" style="display: none;">⏸️ SESSION PAUSED</span>
         </div>
@@ -283,7 +285,9 @@
                 </div>
 
                 <div class="nav-control-bar">
+                    {% if enable_back %}
                     <button class="btn btn-secondary" onclick="prevTask()">⏮️ Previous</button>
+                    {% endif %}
                     <button class="btn btn-warning" onclick="restartTask()">🔄 Restart</button>
                     <button class="btn btn-primary" id="nextBtn" onclick="nextTask()">⏭️ Next</button>
                 </div>
@@ -320,9 +324,12 @@
         const tasks = {{ tasks | tojson }};
         let students = {{ students | tojson }};
         const hideTimer = {{ 'true' if hide_timer else 'false' }};
+        const timerColorChange = {{ 'true' if timer_color_change else 'false' }};
         const autoAdvance = {{ 'true' if auto_advance else 'false' }};
         const unscoredYellow = {{ 'true' if unscored_yellow else 'false' }};
         const enableChime = {{ 'true' if enable_chime else 'false' }};
+        const enablePause = {{ 'true' if enable_pause else 'false' }};
+        const enableBack = {{ 'true' if enable_back else 'false' }};
         const minRecordSeconds = {{ min_seconds }};
         const sessionId = "{{ session_id }}";
         let studentIdsArray = "{{ student_ids_str }}".split(",").filter(x => x.length > 0);
@@ -471,10 +478,12 @@
                 } else {
                     const remainingSeconds = est - taskElapsedSeconds;
 
-                    if (remainingSeconds <= 10) {
-                        timerEl.classList.add('timer-red');
-                    } else if (remainingSeconds <= 20) {
-                        timerEl.classList.add('timer-yellow');
+                    if (timerColorChange) {
+                        if (remainingSeconds <= 10) {
+                            timerEl.classList.add('timer-red');
+                        } else if (remainingSeconds <= 20) {
+                            timerEl.classList.add('timer-yellow');
+                        }
                     }
 
                     if (remainingSeconds >= 0) {
@@ -510,6 +519,7 @@
         }
 
         function togglePause() {
+            if (!enablePause) return;
             isPaused = !isPaused;
             const pauseBadge = document.getElementById('pauseStatusBadge');
             if (pauseBadge) {
@@ -685,16 +695,12 @@
             }
         }
 
-<<<<<<< HEAD
-        async function saveCurrentTaskData(defaultColor = 'green') {
-=======
         // Saves unscored students with a chosen default color ('green' or 'yellow')
         async function saveCurrentTaskData(defaultColor = 'green') {
             // If cycling rapidly (below threshold), skip recording completely
             if (taskElapsedSeconds < minRecordSeconds) {
                 return;
             }
->>>>>>> 5faed20fbcce37bcbb52b0ae6422d4226dd37401
             for (const s of students) {
                 const sid = s.id !== undefined ? s.id : s['id'];
                 if (!studentCompletions[sid]) {
@@ -703,10 +709,7 @@
             }
         }
 
-<<<<<<< HEAD
-=======
         // Space/Enter Key: Marks unscored as Done (Green)
->>>>>>> 5faed20fbcce37bcbb52b0ae6422d4226dd37401
         async function completeAllUnscoredAsDoneAndAdvance() {
             if (isAdvancing) return;
             isAdvancing = true;
@@ -714,10 +717,7 @@
             nextTask();
         }
 
-<<<<<<< HEAD
-=======
         // Auto-Advance Expiration: Marks unscored as Needs Work (Yellow)
->>>>>>> 5faed20fbcce37bcbb52b0ae6422d4226dd37401
         async function autoAdvanceAsYellow() {
             if (isAdvancing) return;
             isAdvancing = true;
@@ -739,6 +739,7 @@
         }
 
         async function prevTask() {
+            if (!enableBack) return;
             if (currentTaskIdx > 0) {
                 await saveCurrentTaskData('green');
                 currentTaskIdx--;
@@ -871,10 +872,10 @@
             } else if (key === 'n') {
                 e.preventDefault();
                 if (!isAdvancing) nextTask();
-            } else if (key === 'b') {
+            } else if (key === 'b' && enableBack) {
                 e.preventDefault();
                 prevTask();
-            } else if (key === 'p') {
+            } else if (key === 'p' && enablePause) {
                 e.preventDefault();
                 togglePause();
             } else if (key === 'r') {

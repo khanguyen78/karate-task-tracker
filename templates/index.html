@@ -4,11 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Karate Task Tracker</title>
-<<<<<<< HEAD
-    <link rel="stylesheet" href="/static/style.css?v=30">
-=======
     <link rel="stylesheet" href="/static/style.css?v=31">
->>>>>>> 5faed20fbcce37bcbb52b0ae6422d4226dd37401
     <style>
         .toggle-container {
             display: flex;
@@ -116,6 +112,11 @@
                         <input type="checkbox" name="show_timer" value="true">
                         <span>⏱️ <strong>Display Visible Timer</strong> (Default: Hidden in background)</span>
                     </label>
+
+                    <label class="toggle-container">
+                        <input type="checkbox" name="timer_color_change" value="true">
+                        <span>🎨 <strong>Change Timer Color at 20s (Yellow) and 10s (Red)</strong> (Default: OFF)</span>
+                    </label>
                     
                     <label class="toggle-container">
                         <input type="checkbox" name="auto_advance" value="true">
@@ -132,9 +133,19 @@
                         <span>🔔 <strong>Play Audio Chime on Task Transitions</strong> (Default: OFF)</span>
                     </label>
 
+                    <label class="toggle-container">
+                        <input type="checkbox" name="enable_pause" value="true">
+                        <span>⏸️ <strong>Enable Pause Option (P Key)</strong> (Default: OFF)</span>
+                    </label>
+
+                    <label class="toggle-container">
+                        <input type="checkbox" name="enable_back" value="true">
+                        <span>⏮️ <strong>Enable Back / Previous Button (B Key)</strong> (Default: OFF)</span>
+                    </label>
+
                     <div class="number-input-row">
                         <span>🚫 <strong>Skip/Discard cycling threshold:</strong></span>
-                        <input type="number" id="min_seconds" name="min_seconds" value="3" min="0" max="60">
+                        <input type="number" id="min_seconds" name="min_seconds" value="15" min="0" max="60">
                         <span class="small-text">(Tasks taking less than this number of seconds are not recorded)</span>
                     </div>
                 </div>
